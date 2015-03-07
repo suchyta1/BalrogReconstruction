@@ -184,26 +184,30 @@ class MCMCReconstruction(object):
         return ax
 
 
-    def PlotAllChains(self, chainstart=0, chainend=None, tmp='tmp', out='chains.pdf', plotkwargs={}):
-        if not os.path.exists(tmp):
-            os.makedirs(tmp)
+    def PlotAllChains(self, chainstart=0, chainend=None, out='chains', plotkwargs={}):
+        if os.path.exists(out):
+            os.system('rm -r %s'%out)
+        if not os.path.exists(out):
+            os.makedirs(out)
 
         files = []
         for i in range(self.nParams):
-            fig = plt.figure(1)
+            fig = plt.figure(i)
             ax = fig.add_subplot(1,1, 1)
             self.PlotChain(ax, i, chainstart=chainstart, chainend=chainend, plotkwargs=plotkwargs)
-            file = os.path.join(tmp, '%i.pdf'%i)
+            file = os.path.join(out, '%i.png'%i)
             plt.savefig(file)
-            plt.close()
+            plt.close(fig)
             files.append(file)
 
+        '''
         gs = ['gs', '-dBATCH', '-dNOPAUSE', '-q', '-sDEVICE=pdfwrite', '-sOutputFile=%s'%(out)]
         for file in files:
             gs.append(file)
         cmd = subprocess.list2cmdline(gs)
         os.system(cmd)
-        os.system('rm -r %s'%tmp )
+        os.system('rm -r %s'%out)
+        '''
 
 
 class BalrogLikelihood(object):
@@ -492,7 +496,6 @@ if __name__=='__main__':
     ax.set_yscale('log')
 
     ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
-
     chains = [1, 10, -3, -2]
     fig = plt.figure(3, figsize=(16,6))
     for i in range(len(chains)):
