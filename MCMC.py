@@ -179,8 +179,8 @@ class MCMCReconstruction(object):
     def PlotChain(self, ax, chainnum, chainstart=0, chainend=None, plotkwargs={}):
         if chainend==None:
             chainend = self.Sampler.chain.shape[1]
-        for i in range(nWalkers):
-            ax.plot(np.arange(steps), ReconObject.Sampler.chain[i, chainstart:chainend, chainnum], **plotkwargs)
+        for i in range(self.nWalkers):
+            ax.plot(np.arange(chainstart, chainend), self.Sampler.chain[i, chainstart:chainend, chainnum], **plotkwargs)
         return ax
 
 
@@ -288,6 +288,10 @@ class BalrogLikelihood(object):
         self.TransferMatrix = np.zeros( (NObsBins,NTruthBins) )
         for i in range(len(BalrogByTruthIndex)):
             ThisTruth = np.zeros( (len(BalrogByTruthIndex[i]), len(self.MeasuredColumns)) )
+            
+            if len(BalrogByTruthIndex[i])==0:
+                continue
+            
             for j in range(len(self.MeasuredColumns)):
                 ThisTruth[:,j] = (BalrogByTruthIndex[i][self.MeasuredColumns[j]])
 
@@ -309,7 +313,7 @@ class BalrogLikelihood(object):
     def PlotTransferMatrix(self, fig, ax, truthwhere=None, measuredwhere=None, plotkwargs={}):
         #im = ax.imshow(BalrogObject.TransferMatrix, origin='lower', extent=[BalrogObject.TruthBins[0][0],BalrogObject.TruthBins[0][-1], BalrogObject.MeasuredBins[0][0],BalrogObject.MeasuredBins[0][-1]], interpolation='nearest')
         #plt.plot( [BalrogObject.TruthBins[0][0],BalrogObject.TruthBins[0][-1]],[BalrogObject.TruthBins[0][0],BalrogObject.TruthBins[0][-1]], color='black' )
-        cax = ax.imshow(BalrogObject.TransferMatrix, origin='lower', interpolation='nearest', **plotkwargs)
+        cax = ax.imshow(self.TransferMatrix, origin='lower', interpolation='nearest', **plotkwargs)
         cbar = fig.colorbar(cax)
 
 
