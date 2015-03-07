@@ -203,7 +203,7 @@ class MCMCReconstruction(object):
             gs.append(file)
         cmd = subprocess.list2cmdline(gs)
         os.system(cmd)
-        os.system('rm -r %'%tmp )
+        os.system('rm -r %s'%tmp )
 
 
 class BalrogLikelihood(object):
