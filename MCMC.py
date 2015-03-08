@@ -103,7 +103,8 @@ class MCMCReconstruction(object):
 
         self.reg = reg * np.identity(self.Balrog.TransferMatrix.shape[0])
         self.CovTruth = np.diag(self.Balrog.TruthHistogram1D) 
-        self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.Balrog.Window*self.CovTruth, np.transpose(self.Balrog.TransferMatrix)))
+        #self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.Balrog.Window*self.CovTruth, np.transpose(self.Balrog.TransferMatrix)))
+        self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.Balrog.Window*self.CovTruth, np.transpose(self.Balrog.TransferMatrix))) + np.diag(self.MeasuredHistogram1D)
         self.iCovObs = np.linalg.inv(self.CovObs + self.reg)
         #CovObs = np.dot(BalrogObject.TransferMatrix, np.dot(BalrogObject.Window*CovTruth, np.transpose(BalrogObject.TransferMatrix))) + np.diag(do)
         #CovObs = np.dot(BalrogObject.TransferMatrix, np.dot(CovObs, np.transpose(BalrogObject.TransferMatrix))) #+ np.diag(do)

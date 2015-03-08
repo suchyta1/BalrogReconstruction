@@ -63,7 +63,7 @@ if __name__=='__main__':
 
     select = {'table': 'sva1v2',
               'des': 'sva1_coadd_objects',
-              'bands': ['i'],
+              'bands': ['g'],
               'truth': ['balrog_index', 'mag', 'ra', 'dec'],
               'sim': ['mag_auto']
              }
@@ -72,7 +72,8 @@ if __name__=='__main__':
     if MPI.COMM_WORLD.Get_rank()==0:
         print len(truth), len(nosim), len(matched), len(des)
 
-        BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_i'], truthbins=[np.arange(16,25,0.25)], measuredcolumns=['mag_auto_i'], measuredbins=[np.arange(16,25,0.25)])
+        #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_i'], truthbins=[np.arange(16,25,0.25)], measuredcolumns=['mag_auto_i'], measuredbins=[np.arange(16,25,0.25)])
+        BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_g'], truthbins=[np.arange(17.5,27,0.25)], measuredcolumns=['mag_auto_g'], measuredbins=[np.arange(17.5,27,0.25)])
         fig = plt.figure(1)
         ax = fig.add_subplot(1,1, 1)
         BalrogObject.PlotTransferMatrix(fig, ax)
@@ -80,7 +81,7 @@ if __name__=='__main__':
         nWalkers = 1000
         burnin = 5000
         steps = 1000
-        ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers)
+        ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
         ReconObject.BurnIn(burnin)
         ReconObject.Sample(steps)
         print np.average(ReconObject.Sampler.acceptance_fraction)
