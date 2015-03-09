@@ -63,20 +63,70 @@ if __name__=='__main__':
 
     select = {'table': 'sva1v2',
               'des': 'sva1_coadd_objects',
-              'bands': ['g'],
+              'bands': ['r'],
               'truth': ['balrog_index', 'mag', 'ra', 'dec'],
-              'sim': ['mag_auto']
+              'sim': ['mag_auto', 'flux_auto', 'fluxerr_auto']
              }
 
     truth, matched, nosim, des = GetAllViaTileQuery(select)
     if MPI.COMM_WORLD.Get_rank()==0:
         print len(truth), len(nosim), len(matched), len(des)
+        band = select['bands'][0]
+        bi = 'balrog_index_%s' %(band)
+
+        cut = (truth['mag_%s'%(band)] > 17) & (truth['mag_%s'%(band)] < 30)
+        truth = truth[cut]
+
+        #p = np.float64( np.power(truth['mag_%s'%(band)]-24.5, 2.0) )
+        keep = np.ones(len(truth), dtype=np.bool_)
+        mid = (truth['mag_%s'%(band)] > 22) & (truth['mag_%s'%(band)] < 25)
+        r = np.random.rand(np.sum(mid))
+        keep[mid] = (r < 0.33)
+        high = (truth['mag_%s'%(band)] > 25)
+        r = np.random.rand(np.sum(high))
+        keep[high] = (r < 0.03)
+        truth = truth[keep]
+        matched = matched[ np.in1d(matched[bi], truth[bi]) ]
+
+        '''
+        p = np.float64( 1.0/np.power(truth['mag_%s'%(band)]-17.0, 2.0) + 1.0/np.power(30.0-truth['mag_%s'%(band)], 2.0) )
+        p = p / np.sum(p)
+        print np.sum(p), p.shape
+        half = np.random.choice(len(truth), size=len(truth)/4, replace=False, p=p)
+        truth = truth[half]
+        matched = matched[ np.in1d(matched[bi], truth[bi]) ]
+        '''
+        
+        """
+        truth = truth[ -np.in1d(truth[bi],nosim[bi]) ]
+        matched = matched[ -np.in1d(matched[bi],nosim[bi]) ]
+
+        matched = np.sort(matched, order=[bi])
+        diff = (np.diff(matched[bi]) == 0)
+        cut = np.zeros(len(matched), dtype=np.bool_)
+        cut[:-1] = (diff | cut[:-1])
+        cut[1:] = (diff | cut[1:])
+        dup = matched[cut][bi]
+        matched = matched[-cut]
+        truth = truth[ -np.in1d(truth[bi],dup) ]
+
+        '''
+        cut = np.zeros(len(matched), dtype=np.bool_)
+        c = matched['fluxerr_auto_%s'%(band)] > 0
+        cut[c] = (matched['flux_auto_%s'%(band)][c] / matched['fluxerr_auto_%s'%(band)][c]) > 5
+        matched = matched[cut]
+        '''
+        """
+
 
         #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_i'], truthbins=[np.arange(16,25,0.25)], measuredcolumns=['mag_auto_i'], measuredbins=[np.arange(16,25,0.25)])
-        BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_g'], truthbins=[np.arange(17.5,27,0.25)], measuredcolumns=['mag_auto_g'], measuredbins=[np.arange(17.5,27,0.25)])
+        #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_g'], truthbins=[np.arange(17.5,27,0.25)], measuredcolumns=['mag_auto_g'], measuredbins=[np.arange(17.5,27,0.25)])
+        #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_r'], truthbins=[np.arange(17.5,27,0.25)], measuredcolumns=['mag_auto_r'], measuredbins=[np.arange(17.5,27,0.25)])
+        BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_r'], truthbins=[np.arange(17.5,27,0.25)], measuredcolumns=['mag_auto_r'], measuredbins=[np.arange(17.5,27,0.25)])
         fig = plt.figure(1)
         ax = fig.add_subplot(1,1, 1)
         BalrogObject.PlotTransferMatrix(fig, ax)
+        plt.savefig('TransferMatrix.png')
 
         nWalkers = 1000
         burnin = 5000
@@ -89,13 +139,14 @@ if __name__=='__main__':
 
         fig = plt.figure(2)
         ax = fig.add_subplot(1,1, 1)
-        BalrogObject.PlotTruthHistogram1D(ax=ax, plotkwargs={'label':'Balrog Truth', 'color':'Red'})
-        BalrogObject.PlotMeasuredHistogram1D(ax=ax, plotkwargs={'label':'Balrog Observed', 'color':'Pink'})
+        BalrogObject.PlotTruthHistogram1D(ax=ax, plotkwargs={'label':'Balrog Truth', 'color':'Blue'})
+        BalrogObject.PlotMeasuredHistogram1D(ax=ax, plotkwargs={'label':'Balrog Observed', 'color':'Cyan'})
         #ReconObject.PlotTruthHistogram1D(ax=ax, plotkwargs={'label':'Data Truth', 'color':'Blue'})
-        ReconObject.PlotMeasuredHistogram1D(ax=ax, plotkwargs={'label':'Data Observed', 'color':'LightBlue'})
+        ReconObject.PlotMeasuredHistogram1D(ax=ax, plotkwargs={'label':'Data Observed', 'color':'Gray'})
         ReconObject.PlotReconHistogram1D(ax=ax, plotkwargs={'label':'Data Reconstructed', 'color':'black', 'fmt':'o', 'markersize':3})
         ax.legend(loc='best', ncol=2)
         ax.set_yscale('log')
+        plt.savefig('ReconstructedHistograms.png')
 
         #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
         chains = [1, 10, -3, -2]
@@ -104,6 +155,7 @@ if __name__=='__main__':
             ax = fig.add_subplot(1,len(chains), i+1)
             ReconObject.PlotChain(ax, chains[i], plotkwargs={'color':'black', 'linewidth':0.005})
         fig.tight_layout()
+        plt.savefig('chains.png')
 
 
-        plt.show()
+        #plt.show()

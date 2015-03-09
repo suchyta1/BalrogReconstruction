@@ -455,9 +455,14 @@ def GetSample(kind='suchyta'):
         wfalloff = 0.1
 
         truth = GetBalrogTruth(nbalrog, balrog_min, balrog_max, 'power', truthkey, extra=2)
+        truth = recfunctions.append_fields(truth, 'size' , 4*truth[truthkey]/balrog_max)
         observed = GetBalrogObserved(truth, falloff, wfalloff, simkey, truthkey)
+        observed = recfunctions.append_fields(observed, 'size_auto', (observed['size'] + np.random.rand(len(observed))))
+
         des_truth = GetDESTruth(ndes, balrog_min, balrog_max, 'power', truthkey, extra=3)
+        des_truth = recfunctions.append_fields(des_truth, 'size' , 4*des_truth[truthkey]/balrog_max)
         des_observed = GetBalrogObserved(des_truth, falloff, wfalloff, simkey, truthkey)
+        des_observed = recfunctions.append_fields(des_observed, 'size_auto', (des_observed['size'] + np.random.rand(len(des_observed))))
 
     elif kind=='huff':
         # Generate a simulated simulated truth catalog.
@@ -474,7 +479,8 @@ def GetSample(kind='suchyta'):
 if __name__=='__main__': 
     
     truth, observed, des_truth, des_observed, truthcolumns, measuredcolumns = GetSample(kind='suchyta')
-    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=truthcolumns, measuredcolumns=measuredcolumns)
+    #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=truthcolumns, measuredcolumns=measuredcolumns)
+    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['mag'], truthbins=[np.arange(16,28, 0.25)], measuredcolumns=['mag_auto'], measuredbins=[np.arange(16,28, 0.25)])
 
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
@@ -500,7 +506,7 @@ if __name__=='__main__':
     ax.legend(loc='best', ncol=2)
     ax.set_yscale('log')
 
-    ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
+    #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
     chains = [1, 10, -3, -2]
     fig = plt.figure(3, figsize=(16,6))
     for i in range(len(chains)):
