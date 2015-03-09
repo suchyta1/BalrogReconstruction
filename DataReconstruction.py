@@ -59,13 +59,82 @@ def GetAllViaTileQuery(select):
     return newarr
 
 
+def Modestify(data, byband='i'):
+    modest = np.zeros(len(data), dtype=np.int32)
+
+    galcut = (data['flags_%s'%(byband)] <=3) & -( ((data['class_star_%s'%(byband)] > 0.3) & (data['mag_auto_%s'%(byband)] < 18.0)) | ((data['spread_model_%s'%(byband)] + 3*data['spreaderr_model_%s'%(byband)]) < 0.003) | ((data['mag_psf_%s'%(byband)] > 30.0) & (data['mag_auto_%s'%(byband)] < 21.0)))
+    modest[galcut] = 1
+
+    starcut = (data['flags_%s'%(byband)] <=3) & ((data['class_star_%s'%(byband)] > 0.3) & (data['mag_auto_%s'%(byband)] < 18.0) & (data['mag_psf_%s'%(byband)] < 30.0) | (((data['spread_model_%s'%(byband)] + 3*data['spreaderr_model_%s'%(byband)]) < 0.003) & ((data['spread_model_%s'%(byband)] +3*data['spreaderr_model_%s'%(byband)]) > -0.003)))
+    modest[starcut] = 3
+
+    neither = -(galcut | starcut)
+    modest[neither] = 5
+
+    data = recfunctions.append_fields(data, 'modtype_%s'%(byband), modest)
+    print len(data), np.sum(galcut), np.sum(starcut), np.sum(neither)
+    return data
+
+
+
+def StarGalaxyRecon(truth, matched, des, band):
+    BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['objtype_%s'%(band), 'mag_%s'%(band)], truthbins=[np.arange(0.5, 5, 2.0), np.arange(17.5,27,0.25)], measuredcolumns=['modtype_%s'%(band), 'mag_auto_%s'%(band)], measuredbins=[np.arange(0.5, 7, 2.0), np.arange(17.5,27,0.25)])
+    fig = plt.figure(1)
+    ax = fig.add_subplot(1,1, 1)
+    BalrogObject.PlotTransferMatrix(fig, ax)
+    plt.savefig('TransferMatrixSG-%s.png'%(band))
+
+    nWalkers = 1000
+    burnin = 5000
+    steps = 1000
+    ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
+    ReconObject.BurnIn(burnin)
+    ReconObject.Sample(steps)
+    print np.average(ReconObject.Sampler.acceptance_fraction)
+
+
+    fig = plt.figure(2)
+    ax = fig.add_subplot(1,1, 1)
+    where = [0, None]
+    BalrogObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'BT-G', 'color':'Blue'})
+    BalrogObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'BO-G', 'color':'Red'})
+    ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'DO-G', 'color':'Gray'})
+    ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'DR-G', 'color':'black', 'fmt':'o', 'markersize':3})
+    ax.legend(loc='best', ncol=2)
+    #ax.set_yscale('log')
+    #plt.savefig('ReconstructedHistogramsG.png')
+
+    #fig = plt.figure(3)
+    #ax = fig.add_subplot(1,1, 1)
+    where = [1, None]
+    BalrogObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'BT-S', 'color':'Blue', 'ls':'dashed'})
+    BalrogObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'BO-S', 'color':'Red', 'ls':'dashed'})
+    ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'DO-S', 'color':'Gray', 'ls':'dashed'})
+    ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'DR-S', 'color':'black', 'fmt':'*', 'markersize':3})
+    ax.legend(loc='best', ncol=2)
+    ax.set_yscale('log')
+    plt.savefig('ReconstructedHistogramsSG-%s.png'%(band))
+
+
+    #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
+    chains = [1, 10, -3, -2]
+    fig = plt.figure(4, figsize=(16,6))
+    for i in range(len(chains)):
+        ax = fig.add_subplot(1,len(chains), i+1)
+        ReconObject.PlotChain(ax, chains[i], plotkwargs={'color':'black', 'linewidth':0.005})
+    fig.tight_layout()
+    plt.savefig('chainsSG-%s.png'%(band))
+
+
+
+
 if __name__=='__main__': 
 
     select = {'table': 'sva1v2',
               'des': 'sva1_coadd_objects',
-              'bands': ['r'],
-              'truth': ['balrog_index', 'mag', 'ra', 'dec'],
-              'sim': ['mag_auto', 'flux_auto', 'fluxerr_auto']
+              'bands': ['i'],
+              'truth': ['balrog_index', 'mag', 'ra', 'dec', 'objtype'],
+              'sim': ['mag_auto', 'flux_auto', 'fluxerr_auto', 'flags', 'spread_model', 'spreaderr_model', 'class_star', 'mag_psf']
              }
 
     truth, matched, nosim, des = GetAllViaTileQuery(select)
@@ -74,6 +143,11 @@ if __name__=='__main__':
         band = select['bands'][0]
         bi = 'balrog_index_%s' %(band)
 
+        matched = Modestify(matched, byband=band)
+        des = Modestify(des, byband=band)
+        StarGalaxyRecon(truth, matched, des, band)
+
+        """
         cut = (truth['mag_%s'%(band)] > 17) & (truth['mag_%s'%(band)] < 30)
         truth = truth[cut]
 
@@ -97,7 +171,6 @@ if __name__=='__main__':
         matched = matched[ np.in1d(matched[bi], truth[bi]) ]
         '''
         
-        """
         truth = truth[ -np.in1d(truth[bi],nosim[bi]) ]
         matched = matched[ -np.in1d(matched[bi],nosim[bi]) ]
 
@@ -118,7 +191,8 @@ if __name__=='__main__':
         '''
         """
 
-
+        
+        """
         #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_i'], truthbins=[np.arange(16,25,0.25)], measuredcolumns=['mag_auto_i'], measuredbins=[np.arange(16,25,0.25)])
         #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_g'], truthbins=[np.arange(17.5,27,0.25)], measuredcolumns=['mag_auto_g'], measuredbins=[np.arange(17.5,27,0.25)])
         #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_r'], truthbins=[np.arange(17.5,27,0.25)], measuredcolumns=['mag_auto_r'], measuredbins=[np.arange(17.5,27,0.25)])
@@ -159,3 +233,4 @@ if __name__=='__main__':
 
 
         #plt.show()
+        """
