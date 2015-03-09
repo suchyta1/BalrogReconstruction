@@ -174,7 +174,7 @@ class MCMCReconstruction(object):
         dims = tuple(dims)
         self.ReconHistogramND = np.reshape(self.ReconHistogram1D, dims)
         self.ReconHistogramNDErr = np.reshape(self.ReconHistogram1DErr, dims)
-        ax = PlotHist(self.Balrog, ax, des=self, kind='Reconstructed', where=where, plotkwargs=plotkwargs)
+        ax = PlotHist(self.Balrog, ax, des=self, kind='Reconstructed', where=where, ferr=True, plotkwargs=plotkwargs)
         return ax
 
     def PlotChain(self, ax, chainnum, chainstart=0, chainend=None, plotkwargs={}):
@@ -332,7 +332,7 @@ class BalrogLikelihood(object):
         return ax
 
 
-def PlotHist(BalrogObject, ax, kind='Truth', des=None, where=None, plotkwargs={}):
+def PlotHist(BalrogObject, ax, kind='Truth', des=None, where=None, ferr=False, plotkwargs={}):
     if kind.upper() in ['TRUTH', 'RECONSTRUCTED']:
         columns = BalrogObject.TruthColumns
         bins = BalrogObject.TruthBins
@@ -355,7 +355,13 @@ def PlotHist(BalrogObject, ax, kind='Truth', des=None, where=None, plotkwargs={}
     if where=='flat':
         hist = h.flatten() 
         c = np.arange(len(hist))
-        ax.scatter(c, hist, **plotkwargs) 
+        if ferr:
+            histerr = hh.flatten()
+            ax.errorbar(c, hist, histerr, **plotkwargs) 
+        else:
+            #ax.scatter(c, hist, **plotkwargs) 
+            ax.plot(c, hist, **plotkwargs) 
+
     else:
         if where==None:
             where = [0]*len(columns)
@@ -447,9 +453,47 @@ def Extrap1D(interp, xs, left, right):
     return val
 
 
+def Mix(observed, frac, tcol, mcol, mval):
+    r = np.random.rand(len(observed))
+    observed = recfunctions.append_fields(observed, mcol, observed[tcol])
+    observed[mcol][r < frac] = mval
+    return observed
+
+
+def TwoPop(n1, n2, balrog_min, balrog_max, truthkey, simkey, falloff, wfalloff, kind='balrog'):
+
+    tcol = 'type'
+    mcol = 'type_auto'
+    m0 = 0.33
+    if kind=='balrog':
+        truth0 = GetBalrogTruth(n1, balrog_min, balrog_max, 'power', truthkey, extra=2)
+    else:
+        truth0 = GetBalrogTruth(n1, balrog_min, balrog_max, 'uniform', truthkey)
+    truth0 = recfunctions.append_fields(truth0, tcol, np.zeros(len(truth0)))
+    observed0 = GetBalrogObserved(truth0, falloff, wfalloff, simkey, truthkey)
+    observed0 = Mix(observed0, m0, tcol, mcol, 1)
+
+    m1 = 0.1
+    if kind=='balrog':
+        truth1 = GetBalrogTruth(n2, balrog_min, balrog_max, 'uniform', truthkey)
+    else:
+        truth1 = GetBalrogTruth(n2, balrog_min, balrog_max, 'power', truthkey, extra=2)
+
+    truth1 = recfunctions.append_fields(truth1, tcol, np.ones(len(truth1)))
+    observed1 = GetBalrogObserved(truth1, falloff, wfalloff, simkey, truthkey)
+    observed1 = Mix(observed1, m1, tcol, mcol, 0)
+
+    truth = recfunctions.stack_arrays( (truth0, truth1), usemask=False)
+    observed = recfunctions.stack_arrays( (observed0, observed1), usemask=False)
+    return truth, observed
+
+
 def GetSample(kind='suchyta'):
     nbalrog = 1e6
+    nbalrog2 = 1e6
+
     ndes = 1e6
+    ndes2 = 1e6
 
     if kind=='suchyta':
         simkey = 'mag_auto'
@@ -459,7 +503,12 @@ def GetSample(kind='suchyta'):
         falloff = 20
         wfalloff = 0.1
 
-        truth = GetBalrogTruth(nbalrog, balrog_min, balrog_max, 'power', truthkey, extra=2)
+        tcol = 'type'
+        mcol = 'type_auto'
+        truth, observed = TwoPop(nbalrog, nbalrog2, balrog_min, balrog_max, truthkey, simkey, falloff, wfalloff, kind='balrog')
+        des_truth, des_observed = TwoPop(ndes, ndes2, balrog_min, balrog_max, truthkey, simkey, falloff, wfalloff, kind='des')
+
+        '''
         #truth = recfunctions.append_fields(truth, 'size', (np.random.randn(len(truth)*5)+truth[truthkey]-balrog_min)/4.0 )
         #truth = recfunctions.append_fields(truth, 'size' , 4*(truth[truthkey]-balrog_min)/(balrog_max-balrog_min))
         truth = recfunctions.append_fields(truth, 'size' , np.random.uniform(0, 4, len(truth)))
@@ -474,6 +523,7 @@ def GetSample(kind='suchyta'):
         des_observed = GetBalrogObserved(des_truth, falloff, wfalloff, simkey, truthkey)
         #des_observed = recfunctions.append_fields(des_observed, 'size_auto', des_observed['size'] + np.random.exponential(0.2, size=len(des_observed)))
         des_observed = recfunctions.append_fields(des_observed, 'size_auto', des_observed['size'] + np.random.randn(len(des_observed))*0.2)
+        '''
 
     elif kind=='huff':
         # Generate a simulated simulated truth catalog.
@@ -531,7 +581,8 @@ def Mag1D():
 
 def MagR2D():
     truth, observed, des_truth, des_observed, truthcolumns, measuredcolumns = GetSample(kind='suchyta')
-    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['size','mag'], truthbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)], measuredcolumns=['size_auto','mag_auto'], measuredbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)])
+    #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['size','mag'], truthbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)], measuredcolumns=['size_auto','mag_auto'], measuredbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)])
+    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28, 0.75)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(16,28, 0.75)])
 
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
@@ -550,7 +601,8 @@ def MagR2D():
     fig = plt.figure(2)
     ax = fig.add_subplot(1,1, 1)
     #where = [3, None]
-    where = [None, 3]
+    #where = [None, 3]
+    where = 'flat'
     BalrogObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'Balrog Truth', 'color':'Red'})
     BalrogObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'Balrog Observed', 'color':'Pink'})
     ReconObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'Data Truth', 'color':'Blue'})
