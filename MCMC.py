@@ -304,12 +304,17 @@ class BalrogLikelihood(object):
            
 
     def BuildWindowFunction(self):
+        '''
         CanHist = np.zeros( (len(self.FullTruth),len(self.TruthColumns)) )
         for i in range(len(self.TruthColumns)):
             CanHist[:, i] = self.FullTruth[ self.TruthColumns[i] ]
         TruthHist, edge = np.histogramdd(CanHist, bins=self.TruthBins)
         self.TruthHist = TruthHist.flatten()
-        self.Window = self.NObserved / self.TruthHist
+        '''
+        self.Window = np.zeros(len(self.TruthHistogram1D))
+        cut = (self.TruthHistogram1D > 0)
+        self.Window[cut] = self.NObserved[cut] / self.TruthHistogram1D[cut]
+
 
     def PlotTransferMatrix(self, fig, ax, truthwhere=None, measuredwhere=None, plotkwargs={}):
         #im = ax.imshow(BalrogObject.TransferMatrix, origin='lower', extent=[BalrogObject.TruthBins[0][0],BalrogObject.TruthBins[0][-1], BalrogObject.MeasuredBins[0][0],BalrogObject.MeasuredBins[0][-1]], interpolation='nearest')
@@ -455,14 +460,20 @@ def GetSample(kind='suchyta'):
         wfalloff = 0.1
 
         truth = GetBalrogTruth(nbalrog, balrog_min, balrog_max, 'power', truthkey, extra=2)
-        truth = recfunctions.append_fields(truth, 'size' , 4*truth[truthkey]/balrog_max)
+        #truth = recfunctions.append_fields(truth, 'size', (np.random.randn(len(truth)*5)+truth[truthkey]-balrog_min)/4.0 )
+        #truth = recfunctions.append_fields(truth, 'size' , 4*(truth[truthkey]-balrog_min)/(balrog_max-balrog_min))
+        truth = recfunctions.append_fields(truth, 'size' , np.random.uniform(0, 4, len(truth)))
         observed = GetBalrogObserved(truth, falloff, wfalloff, simkey, truthkey)
-        observed = recfunctions.append_fields(observed, 'size_auto', (observed['size'] + np.random.rand(len(observed))))
+        #observed = recfunctions.append_fields(observed, 'size_auto', observed['size'] + np.random.exponential(0.2, size=len(observed)))
+        observed = recfunctions.append_fields(observed, 'size_auto', observed['size'] + np.random.randn(len(observed))*0.2)
 
         des_truth = GetDESTruth(ndes, balrog_min, balrog_max, 'power', truthkey, extra=3)
-        des_truth = recfunctions.append_fields(des_truth, 'size' , 4*des_truth[truthkey]/balrog_max)
+        #des_truth = recfunctions.append_fields(des_truth, 'size', (np.random.randn(len(des_truth)*5)+des_truth[truthkey]-balrog_min)/4.0 )
+        #des_truth = recfunctions.append_fields(des_truth, 'size' , 4*(des_truth[truthkey]-balrog_min)/(balrog_max-balrog_min))
+        des_truth = recfunctions.append_fields(des_truth, 'size' , np.random.uniform(0, 4, len(truth)))
         des_observed = GetBalrogObserved(des_truth, falloff, wfalloff, simkey, truthkey)
-        des_observed = recfunctions.append_fields(des_observed, 'size_auto', (des_observed['size'] + np.random.rand(len(des_observed))))
+        #des_observed = recfunctions.append_fields(des_observed, 'size_auto', des_observed['size'] + np.random.exponential(0.2, size=len(des_observed)))
+        des_observed = recfunctions.append_fields(des_observed, 'size_auto', des_observed['size'] + np.random.randn(len(des_observed))*0.2)
 
     elif kind=='huff':
         # Generate a simulated simulated truth catalog.
@@ -476,11 +487,11 @@ def GetSample(kind='suchyta'):
     return truth, observed, des_truth, des_observed, [truthkey], [simkey]
 
 
-if __name__=='__main__': 
-    
+def Mag1D():
     truth, observed, des_truth, des_observed, truthcolumns, measuredcolumns = GetSample(kind='suchyta')
     #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=truthcolumns, measuredcolumns=measuredcolumns)
-    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['mag'], truthbins=[np.arange(16,28, 0.25)], measuredcolumns=['mag_auto'], measuredbins=[np.arange(16,28, 0.25)])
+    #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['mag'], truthbins=[np.arange(16,28, 0.4)], measuredcolumns=['mag_auto'], measuredbins=[np.arange(16,28, 0.4)])
+    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['mag'], truthbins=[np.arange(16,28, 0.4)], measuredcolumns=['mag_auto'], measuredbins=[np.arange(16,28, 0.4)])
 
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
@@ -489,6 +500,7 @@ if __name__=='__main__':
 
     nWalkers = 1000
     burnin = 5000
+    #burnin = 10000
     steps = 1000
     ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogL, truth=des_truth, nWalkers=nWalkers)
     ReconObject.BurnIn(burnin)
@@ -516,6 +528,52 @@ if __name__=='__main__':
     
     plt.show()
 
+
+def MagR2D():
+    truth, observed, des_truth, des_observed, truthcolumns, measuredcolumns = GetSample(kind='suchyta')
+    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['size','mag'], truthbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)], measuredcolumns=['size_auto','mag_auto'], measuredbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)])
+
+    fig = plt.figure(1)
+    ax = fig.add_subplot(1,1, 1)
+    BalrogObject.PlotTransferMatrix(fig, ax)
+
+
+    nWalkers = 1000
+    burnin = 5000
+    steps = 1000
+    ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogL, truth=des_truth, nWalkers=nWalkers)
+    ReconObject.BurnIn(burnin)
+    ReconObject.Sample(steps)
+    print np.average(ReconObject.Sampler.acceptance_fraction)
+
+
+    fig = plt.figure(2)
+    ax = fig.add_subplot(1,1, 1)
+    #where = [3, None]
+    where = [None, 3]
+    BalrogObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'Balrog Truth', 'color':'Red'})
+    BalrogObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'Balrog Observed', 'color':'Pink'})
+    ReconObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'Data Truth', 'color':'Blue'})
+    ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'Data Observed', 'color':'LightBlue'})
+    ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'Data Reconstructed', 'color':'black', 'fmt':'o', 'markersize':3})
+    ax.legend(loc='best', ncol=2)
+    ax.set_yscale('log')
+
+    #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
+    chains = [1, 10, -3, -2]
+    fig = plt.figure(3, figsize=(16,6))
+    for i in range(len(chains)):
+        ax = fig.add_subplot(1,len(chains), i)
+        ReconObject.PlotChain(ax, chains[i], plotkwargs={'color':'black', 'linewidth':0.005})
+    fig.tight_layout()
+    
+    plt.show()
+
+
+if __name__=='__main__': 
+
+    #Mag1D() 
+    MagR2D()
 
     '''
     nWalkers = 1000
