@@ -165,8 +165,7 @@ class MCMCReconstruction(object):
         self.Sample(steps)
         self.ReconHistogram1D, self.ReconHistogramd1DErr = self.GetReconstruction()
 
-
-    def PlotReconHistogram1D(self, ax, where=None, plotkwargs={}, chainstart=None, chainend=None):
+    def BuildReconHistogram(self, chainstart=0, chainend=None):
         self.ReconHistogram1D, self.ReconHistogram1DErr = self.GetReconstruction(chainstart=chainstart, chainend=chainend)
         dims = []
         for i in range(len(self.Balrog.TruthColumns)):
@@ -174,6 +173,9 @@ class MCMCReconstruction(object):
         dims = tuple(dims)
         self.ReconHistogramND = np.reshape(self.ReconHistogram1D, dims)
         self.ReconHistogramNDErr = np.reshape(self.ReconHistogram1DErr, dims)
+
+    def PlotReconHistogram1D(self, ax, where=None, plotkwargs={}, chainstart=None, chainend=None):
+        self.BuildReconHistogram(chainstart=chainstart, chainend=chainend)
         ax = PlotHist(self.Balrog, ax, des=self, kind='Reconstructed', where=where, ferr=True, plotkwargs=plotkwargs)
         return ax
 
@@ -209,6 +211,9 @@ class MCMCReconstruction(object):
         os.system(cmd)
         os.system('rm -r %s'%out)
         '''
+        
+    def ReturnHistogram(self, kind='Truth', where=None, chainstart=0, chainend=None):
+        return ReturnHistogram(self, kind=kind, recon=True, where=None, chainstart=0, chainend=None)
 
 
 class BalrogLikelihood(object):
@@ -331,8 +336,12 @@ class BalrogLikelihood(object):
         ax = PlotHist(self, ax, kind='Measured', where=where, plotkwargs=plotkwargs)
         return ax
 
+    def ReturnHistogram(self, kind='Truth', where=None):
+        return ReturnHistogram(self, kind=kind, where=where, recon=False)
 
-def PlotHist(BalrogObject, ax, kind='Truth', des=None, where=None, ferr=False, plotkwargs={}):
+
+def GetHist(BalrogObject, kind='Truth', des=None):
+    hh = None
     if kind.upper() in ['TRUTH', 'RECONSTRUCTED']:
         columns = BalrogObject.TruthColumns
         bins = BalrogObject.TruthBins
@@ -351,6 +360,77 @@ def PlotHist(BalrogObject, ax, kind='Truth', des=None, where=None, ferr=False, p
             h = BalrogObject.MeasuredHistogramND
         else:
             h = des.MeasuredHistogramND
+
+    return bins, h, hh, columns
+
+
+def ReturnHistogram(Object, kind='Truth', recon=False, where=None, chainstart=0, chainend=None):
+    if kind=='RECONSTRUCTED':
+        recon = True
+        Object.BuildReconHistogram(chainstart=chainstart, chainend=None)
+
+    if not recon:
+        obj = Object
+        des = None
+    else:
+        obj = Object.Balrog
+        des = Object
+
+    bins, h, hh, columns = GetHist(obj, kind=kind, des=des)
+
+    if where=='flat':
+        hist = h.flatten() 
+        c = np.arange(len(hist))
+        if kind.upper()=='RECONSTRUCTED':
+            histerr = hh.flatten()
+            return c, hist, histerr
+        return c, hist
+
+    else:
+        if where==None:
+            where = [0]*len(columns)
+            where[-1] = None
+        ws = [None]*len(columns)
+        for i in range(len(columns)):
+            if where[i]==None:
+                ws[i] = ':'
+                bins = bins[i]
+                xlabel = columns[i]
+            else:
+                ws[i] = '%i' %(where[i])
+        exec "hist = h[%s]" %(', '.join(ws))
+        c = (bins[1:]+bins[:-1]) / 2
+        if kind.upper()=='RECONSTRUCTED':
+            exec "histerr = hh[%s]" %(', '.join(ws))
+            return c, hist, histerr
+        return c, hist
+
+    return ax
+
+
+
+def PlotHist(BalrogObject, ax, kind='Truth', des=None, where=None, ferr=False, plotkwargs={}):
+    '''
+    if kind.upper() in ['TRUTH', 'RECONSTRUCTED']:
+        columns = BalrogObject.TruthColumns
+        bins = BalrogObject.TruthBins
+        if des is None:
+            h = BalrogObject.TruthHistogramND
+        else:
+            if kind.upper()=='TRUTH':
+                h = des.TruthHistogramND
+            else:
+                h = des.ReconHistogramND
+                hh = des.ReconHistogramNDErr
+    elif kind.upper()=='MEASURED':
+        columns = BalrogObject.MeasuredColumns
+        bins = BalrogObject.MeasuredBins
+        if des is None:
+            h = BalrogObject.MeasuredHistogramND
+        else:
+            h = des.MeasuredHistogramND
+    '''
+    bins, h, hh, columns = GetHist(BalrogObject, kind=kind, des=des)
 
     if where=='flat':
         hist = h.flatten() 

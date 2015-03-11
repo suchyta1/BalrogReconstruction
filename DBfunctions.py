@@ -1,14 +1,9 @@
-import os
-import sys
-import subprocess
-import copy
-import copy
 import desdb
 import numpy as np
-import esutil
-import pyfits
+import numpy.lib.recfunctions as recfunctions
 import healpy as hp
 from mpi4py import MPI
+import mpifunctions
 
 
 def AngularDistance(r1, r2, d1, d2):
@@ -230,3 +225,43 @@ def GetDES(select, where=''):
     q = """SELECT %s FROM %s %s"""%(ss, select['des'], where)
     des = cur.quick(q, array=True)
     return des
+
+
+def GetAllViaTileQuery(select, limit=None):
+    cur = desdb.connect()
+    if MPI.COMM_WORLD.Get_rank()==0:
+        arr = cur.quick('SELECT unique(tilename) from balrog_%s_truth_%s' %(select['table'],select['bands'][0]), array=True)
+        tiles = arr['tilename']
+        if limit!=None:
+            tiles = tiles[0:limit]
+    else:
+        tiles = None
+
+    tiles = mpifunctions.Scatter(tiles)
+    arr = []
+    for tile in tiles:
+        where = "where tilename='%s'"%(tile)
+        truth, sim, nosim = GetBalrog(select, truthwhere=where, simwhere=where)
+        des = GetDES(select, where=where)
+        arr.append([truth, sim, nosim, des])
+  
+    arr = MPI.COMM_WORLD.gather(arr, root=0)
+    if MPI.COMM_WORLD.Get_rank()==0:
+        newarr = []
+        for i in range(len(arr)):
+            if len(arr[i])==0:
+                continue
+            
+            for j in range(len(arr[i])):
+                for k in range(len(arr[i][j])):
+                    if len(newarr) < len(arr[i][j]):
+                        newarr.append(arr[i][j][k])
+                    else:
+                        newarr[k] = recfunctions.stack_arrays( (newarr[k], arr[i][j][k]), usemask=False)
+
+    else:
+        newarr = [None]*4
+
+    return newarr
+
+

@@ -12,10 +12,7 @@ from mpi4py import MPI
 import mpifunctions
 import DBfunctions
 import MCMC
-
-import numpy as np
-import scipy.spatial
-from sklearn.neighbors import NearestNeighbors
+import healpyfunctions
 
 import matplotlib
 #matplotlib.use('Agg')
@@ -128,26 +125,45 @@ def StarGalaxyRecon(truth, matched, des, band):
 
 
 
+
+
 if __name__=='__main__': 
 
     select = {'table': 'sva1v2',
               'des': 'sva1_coadd_objects',
               'bands': ['i'],
               'truth': ['balrog_index', 'mag', 'ra', 'dec', 'objtype'],
-              'sim': ['mag_auto', 'flux_auto', 'fluxerr_auto', 'flags', 'spread_model', 'spreaderr_model', 'class_star', 'mag_psf']
+              'sim': ['mag_auto', 'flux_auto', 'fluxerr_auto', 'flags', 'spread_model', 'spreaderr_model', 'class_star', 'mag_psf', 'alphawin_j2000', 'deltawin_j2000']
              }
 
+    band = select['bands'][0]
+    bi = 'balrog_index_%s' %(band)
     truth, matched, nosim, des = GetAllViaTileQuery(select)
     if MPI.COMM_WORLD.Get_rank()==0:
         print len(truth), len(nosim), len(matched), len(des)
-        band = select['bands'][0]
-        bi = 'balrog_index_%s' %(band)
 
         matched = Modestify(matched, byband=band)
         des = Modestify(des, byband=band)
-        StarGalaxyRecon(truth, matched, des, band)
+        #StarGalaxyRecon(truth, matched, des, band)
+        
+    truth, matched, nosim, des = healpyfunctions.ScatterByHealPixel(truth, matched, nosim, des, band, nside=256)
+    if MPI.COMM_WORLD.Get_rank()==0:
+        print truth.shape, truth[0].dtype.names
+        print truth[0].shape
 
-        """
+    '''
+    truth = mpifunctions.scatter(truth)
+    if MPI.COMM_WORLD.Get_rank()==0:
+        print '0'
+        print truth
+        print len(truth)
+    '''
+
+         
+
+
+
+    """
         cut = (truth['mag_%s'%(band)] > 17) & (truth['mag_%s'%(band)] < 30)
         truth = truth[cut]
 
@@ -189,10 +205,10 @@ if __name__=='__main__':
         cut[c] = (matched['flux_auto_%s'%(band)][c] / matched['fluxerr_auto_%s'%(band)][c]) > 5
         matched = matched[cut]
         '''
-        """
+    """
 
         
-        """
+    """
         #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_i'], truthbins=[np.arange(16,25,0.25)], measuredcolumns=['mag_auto_i'], measuredbins=[np.arange(16,25,0.25)])
         #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_g'], truthbins=[np.arange(17.5,27,0.25)], measuredcolumns=['mag_auto_g'], measuredbins=[np.arange(17.5,27,0.25)])
         #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['mag_r'], truthbins=[np.arange(17.5,27,0.25)], measuredcolumns=['mag_auto_r'], measuredbins=[np.arange(17.5,27,0.25)])
@@ -233,4 +249,4 @@ if __name__=='__main__':
 
 
         #plt.show()
-        """
+    """
