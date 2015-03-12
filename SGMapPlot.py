@@ -69,6 +69,21 @@ def MakeSGMaps(galaxy, star, hpIndex, nside, version, nest=False, gmin=None, gma
     healpyfunctions.VisualizeHealPixMap(StarMap, title='Star-map-%s'%(version), nest=nest, vmin=starmin, vmax=starmax, background='gray')
 
 
+def PlotHealPixel(ax, hpIndex, tfile, ofile, dfile, rfile):
+    PlotRecon(ax, tfile, 1, hpIndex, kind='plot', plotkwargs={'color':'Blue', 'label':'BT-G', 'lw':0.75})
+    PlotRecon(ax, ofile, 1, hpIndex, kind='plot', plotkwargs={'color':'MediumTurquoise', 'label':'BO-G', 'lw':0.75})
+    PlotRecon(ax, rfile, 1, hpIndex, errext=3, kind='errorbar', plotkwargs={'color':'Indigo', 'fmt':'o', 'label':'DR-G', 'markersize':3}) 
+    PlotRecon(ax, dfile, 1, hpIndex, kind='plot', plotkwargs={'color':'Green', 'label':'DO-G', 'lw':0.75})
+
+    PlotRecon(ax, tfile, 2, hpIndex, kind='plot', plotkwargs={'color':'red', 'label':'BT-S', 'lw':0.75})
+    PlotRecon(ax, ofile, 2, hpIndex, kind='plot', plotkwargs={'color':'magenta', 'label':'BO-S', 'lw':0.75})
+    PlotRecon(ax, rfile, 2, hpIndex, errext=4, kind='errorbar', plotkwargs={'color':'maroon', 'fmt':'*', 'label':'DR-S', 'markersize':5}) 
+    PlotRecon(ax, dfile, 2, hpIndex, kind='plot', plotkwargs={'color':'pink', 'label':'DO-S', 'lw':0.75})
+
+    ax.legend(loc='best', ncol=2)
+    ax.set_yscale('log')
+
+
 def PlotRecon(ax, file, ext, hp, errext=None, kind='plot', coordsext=-2, hpext=-1, plotkwargs={}):
     hdus = pyfits.open(file)
     hps = hdus[hpext].data['hpIndex']
