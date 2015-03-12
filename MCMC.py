@@ -92,7 +92,7 @@ def AutoBin(data, columns):
 
 class MCMCReconstruction(object):
 
-    def __init__(self, Balrog, Measured, logL, nWalkers=1000, reg=1.0e-10, truth=None):
+    def __init__(self, Balrog, Measured, logL, nWalkers=1000, reg=1.0e-10, truth=None, samplelog=False):
         self.Balrog = Balrog
         self.Measured = Measured
         self.BuildMeasuredHist()
@@ -107,6 +107,12 @@ class MCMCReconstruction(object):
         while np.sum(cut) >0:
             self.StartGuess[cut] = const + (const/2.0) * np.random.randn(np.sum(cut))
             cut = (self.StartGuess <= 1)
+
+        if samplelog:
+            self.samplelog = True
+            self.StartGuess = np.log10(self.StartGuess)
+        else:
+            self.samplelog = False
 
         self.reg = reg * np.identity(self.Balrog.TransferMatrix.shape[0])
         self.CovTruth = np.diag(self.Balrog.TruthHistogram1D * self.Balrog.Window) 
@@ -123,6 +129,8 @@ class MCMCReconstruction(object):
         #CovObs = np.dot(BalrogObject.TransferMatrix, np.dot(CovObs, np.transpose(BalrogObject.TransferMatrix))) #+ np.diag(do)
         #CovObs = np.dot(BalrogObject.TransferMatrix, np.dot(CovObs, np.transpose(BalrogObject.TransferMatrix))) + np.diag(do)
         self.Sampler = emcee.EnsembleSampler(self.nWalkers, self.nParams, logL, args=[self])
+        #self.Sampler = emcee.EnsembleSampler(self.nWalkers, self.nParams, logL, args=[self], a=10)
+        #self.Sampler = emcee.EnsembleSampler(self.nWalkers, self.nParams, logL, args=[self], a=0.2)
 
         if truth!=None:
             self.Truth = truth
@@ -169,8 +177,12 @@ class MCMCReconstruction(object):
         subchain = self.Sampler.chain[:, chainstart:chainend, :]
         subchain = np.transpose(subchain, (2,0,1))
         subchain = np.reshape(subchain, (subchain.shape[0], subchain.shape[1]*subchain.shape[2]))
+
+        if self.samplelog:
+            subchain = np.power(10.0, subchain)
         avg = np.average(subchain, axis=-1)
         std = np.std(subchain, axis=-1)
+
         return avg, std
 
     def DefaultReconstruct(self, burnin=1000, steps=1000):
@@ -192,10 +204,19 @@ class MCMCReconstruction(object):
         ax = PlotHist(self.Balrog, ax, des=self, kind='Reconstructed', where=where, ferr=True, plotkwargs=plotkwargs)
         return ax
 
-    def PlotChain(self, ax, chainnum, chainstart=0, chainend=None, plotkwargs={}):
+    def PlotChain(self, ax, chainnum, chainstart=0, chainend=None, plotkwargs={}, twocolor=False):
         if chainend==None:
             chainend = self.Sampler.chain.shape[1]
+
         for i in range(self.nWalkers):
+            if twocolor:
+                if i==(self.nWalkers-2):
+                    plotkwargs['linewidth'] = 1
+                    plotkwargs['color'] = 'red'
+                elif i==(self.nWalkers-1):
+                    plotkwargs['linewidth'] = 1
+                    plotkwargs['color'] = 'blue'
+
             ax.plot(np.arange(chainstart, chainend), self.Sampler.chain[i, chainstart:chainend, chainnum], **plotkwargs)
         return ax
 
@@ -479,11 +500,21 @@ def PlotHist(BalrogObject, ax, kind='Truth', des=None, where=None, ferr=False, p
 
 
 def ObjectLogL(Truth, ReconObject):
-    if np.sum(Truth < 0) > 0:
-        return -np.inf
-    TruthObs = np.dot(ReconObject.Balrog.TransferMatrix, ReconObject.Balrog.Window*Truth)
-    delta = TruthObs - ReconObject.MeasuredHistogram1D
-    logL = -0.5 * np.dot(np.transpose(delta), np.dot(ReconObject.iCovObs,delta))
+    if ReconObject.samplelog:
+        if np.sum(Truth < -20) > 0:
+            return -np.inf
+        truth = np.power(10, Truth) 
+        TruthObs = np.dot(ReconObject.Balrog.TransferMatrix, ReconObject.Balrog.Window*truth)
+        delta = TruthObs - ReconObject.MeasuredHistogram1D
+        logL = -0.5 * np.dot(np.transpose(delta), np.dot(ReconObject.iCovObs,delta))
+
+    else:
+        if np.sum(Truth < 0) > 0:
+            return -np.inf
+        TruthObs = np.dot(ReconObject.Balrog.TransferMatrix, ReconObject.Balrog.Window*Truth)
+        delta = TruthObs - ReconObject.MeasuredHistogram1D
+        logL = -0.5 * np.dot(np.transpose(delta), np.dot(ReconObject.iCovObs,delta))
+
     return logL
 
 

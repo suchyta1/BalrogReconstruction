@@ -40,10 +40,28 @@ def StarGalaxyRecon(truth, matched, des, band, truthcolumns, truthbins, measured
     tmfile = os.path.join(out, 'TransferMatrix-%s-%i.png' %(band,index))
     reconfile = os.path.join(out, 'ReconstructedHistogram-%s-%i.png' %(band,index))
     chainfile = os.path.join(out, 'Chains-%s-%i.png' %(band,index))
+    burnfile = os.path.join(out, 'Burnin-%s-%i.png' %(band,index))
+
 
     BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=truthcolumns, truthbins=truthbins, measuredcolumns=measuredcolumns, measuredbins=measuredbins)
     ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
+    #ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10, samplelog=True)
     ReconObject.BurnIn(burnin)
+
+    c = len(measuredbins[-1]) - 1
+    chains = [c-4, c-3, c-2, c-1, c]
+    
+    '''
+    #chains = [1, 10, -2]
+    fig = plt.figure(figsize=(16,6))
+    for i in range(len(chains)):
+        ax = fig.add_subplot(1,len(chains), i+1)
+        ReconObject.PlotChain(ax, chains[i], plotkwargs={'color':'black', 'linewidth':0.03}, twocolor=True)
+    fig.tight_layout()
+    plt.savefig(burnfile)
+    plt.close(fig)
+    '''
+
     ReconObject.Sample(steps)
     print index, np.average(ReconObject.Sampler.acceptance_fraction)
     acceptance = np.average(ReconObject.Sampler.acceptance_fraction)
@@ -53,6 +71,14 @@ def StarGalaxyRecon(truth, matched, des, band, truthcolumns, truthbins, measured
     ax = fig.add_subplot(1,1, 1)
     BalrogObject.PlotTransferMatrix(fig, ax)
     plt.savefig(tmfile)
+
+    fig = plt.figure(figsize=(16,6))
+    for i in range(len(chains)):
+        ax = fig.add_subplot(1,len(chains), i+1)
+        ReconObject.PlotChain(ax, chains[i], plotkwargs={'color':'black', 'linewidth':0.03}, twocolor=True)
+    fig.tight_layout()
+    plt.savefig(chainfile)
+    plt.close(fig)
 
     where = [0, None]
     galaxy_balrog_obs_center, galaxy_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
@@ -266,10 +292,10 @@ if __name__=='__main__':
 
     band = 'i'
 
-    MapConfig = {'nside': 256,
-                 #'nside': 64,
+    MapConfig = {'nside': 64,
+                 #'nside': 256,
                  'nest': False,
-                 'version': 'v3',
+                 'version': 'v6',
                  'summin': 22.5,
                  'summax': 24.5}
 
@@ -281,10 +307,10 @@ if __name__=='__main__':
              }
 
     MCMCconfig = {'truthcolumns': ['objtype_%s'%(band), 'mag_%s'%(band)],
-                  'truthbins': [np.arange(0.5, 5, 2.0), np.arange(17.5,27,0.25)],
+                  'truthbins': [np.arange(0.5, 5, 2.0), np.arange(17.5,25,0.25)],
                   'measuredcolumns': ['modtype_%s'%(band), 'mag_auto_%s'%(band)],
-                  'measuredbins': [np.arange(0.5, 7, 2.0), np.arange(17.5,27,0.25)],
-                  'burnin': 3000,
+                  'measuredbins': [np.arange(0.5, 7, 2.0), np.arange(17.5,25,0.25)],
+                  'burnin': 6000,
                   'steps': 1000,
                   'nWalkers': 1000,
                   'out': 'SGPlots-%s'%(MapConfig['version']),
