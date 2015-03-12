@@ -93,6 +93,7 @@ def PlotRecon(ax, file, ext, hp, errext=None, kind='plot', coordsext=-2, hpext=-
     coords = hdus[coordsext].data
     vals = hdus[ext].data[line, :] * norm[line]
 
+    ax.set_title(r'Raw Number = %i' %(hdus[hpext].data['numTruth'][line]))
 
     if errext!=None:
         err = hdus[errext].data[line, :] * norm[line]
@@ -106,6 +107,19 @@ def PlotRecon(ax, file, ext, hp, errext=None, kind='plot', coordsext=-2, hpext=-
 
     return ax
 
+
+class ReconPlotter(object):
+    def __init__(self, dir, version):
+        self.version = version
+        self.dir = dir
+        self.obsfile = os.path.join(self.dir, 'SG-Balrog-Observed-%s.fits' %(self.version))
+        self.truthfile = os.path.join(self.dir,'SG-Balrog-Truth-%s.fits' %(self.version))
+        self.datafile = os.path.join(self.dir, 'SG-Data-Observed-%s.fits' %(self.version))
+        self.reconfile = os.path.join(self.dir, 'SG-Data-Reconstructed-%s.fits' %(self.version))
+        self.HealPixels = pyfits.open(self.reconfile)[-1].data['hpIndex']
+
+    def PlotHP(self, ax, hpIndex):
+        PlotHealPixel(ax, hpIndex, self.truthfile, self.obsfile, self.datafile, self.reconfile);
 
 
 

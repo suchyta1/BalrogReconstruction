@@ -97,15 +97,28 @@ class MCMCReconstruction(object):
         self.Measured = Measured
         self.BuildMeasuredHist()
 
-        self.StartGuess = np.random.rand(nWalkers, self.Balrog.TransferMatrix.shape[1]) + np.reshape(self.Balrog.TruthHistogram1D, (1, len(self.Balrog.TruthHistogram1D)))
         self.nWalkers = nWalkers
         self.nParams = self.Balrog.TransferMatrix.shape[1]
 
+        #self.StartGuess = np.random.rand(nWalkers, self.Balrog.TransferMatrix.shape[1]) + np.reshape(self.Balrog.TruthHistogram1D, (1, len(self.Balrog.TruthHistogram1D)))
+        const = float(self.Balrog.FullTruth.size) / self.Balrog.TruthHistogram1D.shape[0]
+        self.StartGuess = const + (const/2.0) * np.random.randn(self.nWalkers, self.Balrog.TransferMatrix.shape[1])
+        cut = (self.StartGuess <= 1)
+        while np.sum(cut) >0:
+            self.StartGuess[cut] = const + (const/2.0) * np.random.randn(np.sum(cut))
+            cut = (self.StartGuess <= 1)
+
         self.reg = reg * np.identity(self.Balrog.TransferMatrix.shape[0])
-        self.CovTruth = np.diag(self.Balrog.TruthHistogram1D) 
-        #self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.Balrog.Window*self.CovTruth, np.transpose(self.Balrog.TransferMatrix)))
-        self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.Balrog.Window*self.CovTruth, np.transpose(self.Balrog.TransferMatrix))) + np.diag(self.MeasuredHistogram1D)
+        self.CovTruth = np.diag(self.Balrog.TruthHistogram1D * self.Balrog.Window) 
+        self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.CovTruth, np.transpose(self.Balrog.TransferMatrix))) + np.diag(self.MeasuredHistogram1D)
         self.iCovObs = np.linalg.inv(self.CovObs + self.reg)
+
+        #self.reg = reg * np.identity(self.Balrog.TransferMatrix.shape[0])
+        #self.CovTruth = np.diag(self.Balrog.TruthHistogram1D) 
+        #self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.Balrog.Window*self.CovTruth, np.transpose(self.Balrog.TransferMatrix)))
+        #self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.Balrog.Window*self.CovTruth, np.transpose(self.Balrog.TransferMatrix))) + np.diag(self.MeasuredHistogram1D)
+        #self.iCovObs = np.linalg.inv(self.CovObs + self.reg)
+
         #CovObs = np.dot(BalrogObject.TransferMatrix, np.dot(BalrogObject.Window*CovTruth, np.transpose(BalrogObject.TransferMatrix))) + np.diag(do)
         #CovObs = np.dot(BalrogObject.TransferMatrix, np.dot(CovObs, np.transpose(BalrogObject.TransferMatrix))) #+ np.diag(do)
         #CovObs = np.dot(BalrogObject.TransferMatrix, np.dot(CovObs, np.transpose(BalrogObject.TransferMatrix))) + np.diag(do)

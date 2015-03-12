@@ -79,7 +79,7 @@ def StarGalaxyRecon(truth, matched, des, band):
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
     BalrogObject.PlotTransferMatrix(fig, ax)
-    plt.savefig('TransferMatrixSG-%s-sva1v3_2.png'%(band))
+    plt.savefig('TransferMatrixSG-%s-sva1v3.png'%(band))
 
     nWalkers = 1000
     #burnin = 5000
@@ -111,7 +111,7 @@ def StarGalaxyRecon(truth, matched, des, band):
     ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'DR-S', 'color':'black', 'fmt':'*', 'markersize':3})
     ax.legend(loc='best', ncol=2)
     ax.set_yscale('log')
-    plt.savefig('ReconstructedHistogramsSG-%s-sva1v3_2.png'%(band))
+    plt.savefig('ReconstructedHistogramsSG-%s-sva1v3.png'%(band))
 
 
     #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
@@ -121,7 +121,7 @@ def StarGalaxyRecon(truth, matched, des, band):
         ax = fig.add_subplot(1,len(chains), i+1)
         ReconObject.PlotChain(ax, chains[i], plotkwargs={'color':'black', 'linewidth':0.005})
     fig.tight_layout()
-    plt.savefig('chainsSG-%s-sva1v3_2.png'%(band))
+    plt.savefig('chainsSG-%s-sva1v3.png'%(band))
 
 
 
@@ -130,7 +130,7 @@ def StarGalaxyRecon(truth, matched, des, band):
 
 if __name__=='__main__': 
 
-    select = {'table': 'sva1v3_2',
+    select = {'table': 'sva1v3',
               'des': 'sva1_coadd_objects',
               'bands': ['i'],
               'truth': ['balrog_index', 'mag', 'ra', 'dec', 'objtype'],

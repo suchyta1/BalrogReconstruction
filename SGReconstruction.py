@@ -8,7 +8,7 @@ import pyfits
 import healpy as hp
 
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import mpifunctions
@@ -41,11 +41,18 @@ def StarGalaxyRecon(truth, matched, des, band, truthcolumns, truthbins, measured
     reconfile = os.path.join(out, 'ReconstructedHistogram-%s-%i.png' %(band,index))
     chainfile = os.path.join(out, 'Chains-%s-%i.png' %(band,index))
 
-
     BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=truthcolumns, truthbins=truthbins, measuredcolumns=measuredcolumns, measuredbins=measuredbins)
     ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
     ReconObject.BurnIn(burnin)
     ReconObject.Sample(steps)
+    print index, np.average(ReconObject.Sampler.acceptance_fraction)
+    acceptance = np.average(ReconObject.Sampler.acceptance_fraction)
+
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1, 1)
+    BalrogObject.PlotTransferMatrix(fig, ax)
+    plt.savefig(tmfile)
 
     where = [0, None]
     galaxy_balrog_obs_center, galaxy_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
@@ -67,7 +74,7 @@ def StarGalaxyRecon(truth, matched, des, band, truthcolumns, truthbins, measured
     recon_obs = [galaxy_recon_obs, star_recon_obs, galaxy_recon_obs_center]
     recon_truth = [galaxy_recon_truth, star_recon_truth, galaxy_recon_trutherr, star_recon_trutherr, galaxy_recon_truth_center]
 
-    return balrog_obs, balrog_truth, recon_obs, recon_truth, index, len(truth)
+    return balrog_obs, balrog_truth, recon_obs, recon_truth, index, len(truth), acceptance
 
 
 '''
@@ -192,16 +199,18 @@ def DoStarGalaxy(select, mcmc, map):
     images = [ [], [], [], [] ]
     hpIndex = np.empty(size)
     sizes = np.empty(size)
+    acceptance = np.empty(size)
 
     for i in range(size):
         if len(truth) > 0:
-            o, t, d, r, h, s = StarGalaxyRecon(truth[i], matched[i], des[i], band, mcmc['truthcolumns'], mcmc['truthbins'], mcmc['measuredcolumns'], mcmc['measuredbins'], nWalkers=mcmc['nWalkers'], burnin=mcmc['burnin'], steps=mcmc['steps'], out=mcmc['out'])
+            o, t, d, r, h, s, a = StarGalaxyRecon(truth[i], matched[i], des[i], band, mcmc['truthcolumns'], mcmc['truthbins'], mcmc['measuredcolumns'], mcmc['measuredbins'], nWalkers=mcmc['nWalkers'], burnin=mcmc['burnin'], steps=mcmc['steps'], out=mcmc['out'])
             images[0].append(o)
             images[1].append(t)
             images[2].append(d)
             images[3].append(r)
             hpIndex[i] = h
             sizes[i] = s
+            acceptance[i] = a
 
 
     names = ['SG-Balrog-Observed-%s.fits' %(map['version']),
@@ -209,7 +218,7 @@ def DoStarGalaxy(select, mcmc, map):
              'SG-Data-Observed-%s.fits' %(map['version']),
              'SG-Data-Reconstructed-%s.fits' %(map['version'])]
     images = GatherImages(images)
-    hpIndex, sizes = mpifunctions.Gather(hpIndex, sizes)
+    hpIndex, sizes, acceptance = mpifunctions.Gather(hpIndex, sizes, acceptance)
     if MPI.COMM_WORLD.Get_rank()==0:
         for i in range(len(images)):
             hdus = [pyfits.PrimaryHDU()]
@@ -217,9 +226,10 @@ def DoStarGalaxy(select, mcmc, map):
                 hdus.append( pyfits.ImageHDU(images[i][:,j,:]) )
             hdus.append( pyfits.ImageHDU(images[i][0, -1, :]) )
 
-            tab = np.zeros( images[i].shape[0], dtype=[('hpIndex',np.int64), ('numTruth',np.int64)] )
+            tab = np.zeros( images[i].shape[0], dtype=[('hpIndex',np.int64), ('numTruth',np.int64), ('acceptance',np.float64)] )
             tab['hpIndex'] = np.int64(hpIndex)
             tab['numTruth'] = np.int64(sizes)
+            tab['acceptance'] = acceptance
             hdus.append( pyfits.BinTableHDU(tab) )
             hdus = pyfits.HDUList(hdus)
             hdus.writeto(names[i], clobber=True)
@@ -257,8 +267,9 @@ if __name__=='__main__':
     band = 'i'
 
     MapConfig = {'nside': 256,
+                 #'nside': 64,
                  'nest': False,
-                 'version': 'v1',
+                 'version': 'v3',
                  'summin': 22.5,
                  'summax': 24.5}
 
