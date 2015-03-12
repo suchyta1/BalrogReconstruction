@@ -8,7 +8,7 @@ import pyfits
 import healpy as hp
 
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import mpifunctions
@@ -43,8 +43,34 @@ def StarGalaxyRecon(truth, matched, des, band, truthcolumns, truthbins, measured
 
 
     BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=truthcolumns, truthbins=truthbins, measuredcolumns=measuredcolumns, measuredbins=measuredbins)
+    ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
+    ReconObject.BurnIn(burnin)
+    ReconObject.Sample(steps)
 
-    '''
+    where = [0, None]
+    galaxy_balrog_obs_center, galaxy_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
+    galaxy_balrog_truth_center, galaxy_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
+    galaxy_recon_obs_center, galaxy_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
+    galaxy_recon_truth_center, galaxy_recon_truth, galaxy_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
+
+    where = [1, None]
+    star_balrog_obs_center, star_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
+    star_balrog_truth_center, star_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
+    star_recon_obs_center, star_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
+    star_recon_truth_center, star_recon_truth, star_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
+
+    where = [2, None]
+    neither_balrog_obs_center, neither_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
+
+    balrog_obs = [galaxy_balrog_obs, star_balrog_obs, neither_balrog_obs, galaxy_balrog_obs_center]
+    balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_balrog_truth_center]
+    recon_obs = [galaxy_recon_obs, star_recon_obs, galaxy_recon_obs_center]
+    recon_truth = [galaxy_recon_truth, star_recon_truth, galaxy_recon_trutherr, star_recon_trutherr, galaxy_recon_truth_center]
+
+    return balrog_obs, balrog_truth, recon_obs, recon_truth, index, len(truth)
+
+
+'''
     fig = plt.figure()
     ax = fig.add_subplot(1,1, 1)
     BalrogObject.PlotTransferMatrix(fig, ax)
@@ -89,26 +115,8 @@ def StarGalaxyRecon(truth, matched, des, band, truthcolumns, truthbins, measured
     plt.close(fig)
 
     #return centers, galaxy, galaxyerr, star, starerr, index
-    '''
+'''
 
-    where = [0, None]
-    galaxy_balrog_obs_center, galaxy_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
-    galaxy_balrog_truth_center, galaxy_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
-    galaxy_recon_obs_center, galaxy_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
-    galaxy_recon_truth_center, galaxy_recon_truth, galaxy_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
-
-    where = [1, None]
-    star_balrog_obs_center, star_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
-    star_balrog_truth_center, star_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
-    star_recon_obs_center, star_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
-    star_recon_truth_center, star_recon_truth, star_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
-
-    balrog_obs = [galaxy_balrog_obs, star_balrog_obs, galaxy_balrog_obs_center]
-    balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_balrog_truth_center]
-    recon_obs = [galaxy_recon_obs, star_recon_obs, galaxy_recon_obs_center]
-    recon_truth = [galaxy_recon_truth, star_recon_truth, galaxy_recon_trutherr, star_recon_trutherr, galaxy_recon_truth_center]
-
-    return balrog_obs, balrog_truth, recon_obs, recon_truth, index, len(truth)
 
 
 def ReconImageLine(hpIndex, num, arr):
@@ -167,7 +175,7 @@ def MakeMaps(galaxy, star, hpIndex, nside, version, nest=False):
 def DoStarGalaxy(select, mcmc, map):
     band = select['bands'][0]
     bi = 'balrog_index_%s' %(band)
-    #truth, matched, nosim, des = DBfunctions.GetAllViaTileQuery(select, limit=2)
+    #truth, matched, nosim, des = DBfunctions.GetAllViaTileQuery(select, limit=8)
     truth, matched, nosim, des = DBfunctions.GetAllViaTileQuery(select)
 
     if MPI.COMM_WORLD.Get_rank()==0:
@@ -181,13 +189,20 @@ def DoStarGalaxy(select, mcmc, map):
   
     size = len(truth)
     #size = 1
-    images = [[None]*size]*4
+    images = [ [], [], [], [] ]
     hpIndex = np.empty(size)
     sizes = np.empty(size)
 
     for i in range(size):
         if len(truth) > 0:
-            images[0][i], images[1][i], images[2][i], images[3][i], hpIndex[i], sizes[i] = StarGalaxyRecon(truth[i], matched[i], des[i], band, mcmc['truthcolumns'], mcmc['truthbins'], mcmc['measuredcolumns'], mcmc['measuredbins'], nWalkers=mcmc['nWalkers'], burnin=mcmc['burnin'], steps=mcmc['steps'], out=mcmc['out'])
+            o, t, d, r, h, s = StarGalaxyRecon(truth[i], matched[i], des[i], band, mcmc['truthcolumns'], mcmc['truthbins'], mcmc['measuredcolumns'], mcmc['measuredbins'], nWalkers=mcmc['nWalkers'], burnin=mcmc['burnin'], steps=mcmc['steps'], out=mcmc['out'])
+            images[0].append(o)
+            images[1].append(t)
+            images[2].append(d)
+            images[3].append(r)
+            hpIndex[i] = h
+            sizes[i] = s
+
 
     names = ['SG-Balrog-Observed-%s.fits' %(map['version']),
              'SG-Balrog-Truth-%s.fits' %(map['version']),
@@ -200,7 +215,6 @@ def DoStarGalaxy(select, mcmc, map):
             hdus = [pyfits.PrimaryHDU()]
             for j in range(images[i].shape[1]-1):
                 hdus.append( pyfits.ImageHDU(images[i][:,j,:]) )
-
             hdus.append( pyfits.ImageHDU(images[i][0, -1, :]) )
 
             tab = np.zeros( images[i].shape[0], dtype=[('hpIndex',np.int64), ('numTruth',np.int64)] )
@@ -211,6 +225,30 @@ def DoStarGalaxy(select, mcmc, map):
             hdus.writeto(names[i], clobber=True)
 
         SGRecon2Map(names[-1], map['version'], magmin=map['summin'], magmax=map['summax'], nside=map['nside'], nest=map['nest'])
+
+
+def PlotRecon(ax, file, ext, hp, errext=None, kind='plot', coordsext=-2, hpext=-1, plotkwargs={}):
+    hdus = pyfits.open(file)
+    hps = hdus[hpext].data['hpIndex']
+    norm = 1.0/hdus[hpext].data['numTruth'] * np.power(10.0,5.0)/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(3600.0, 2.0)
+
+    line = np.arange(len(hps))[hps==hp][0]
+    coords = hdus[coordsext].data
+    vals = hdus[ext].data[line, :] * norm[line]
+
+
+    if errext!=None:
+        err = hdus[errext].data[line, :] * norm[line]
+    
+    if kind=='plot':
+        ax.plot(coords, vals, **plotkwargs)
+    elif kind=='scatter':
+        ax.scatter(coords, vals, **plotkwargs)
+    elif kind=='errorbar':
+        ax.errorbar(coords, vals, err, **plotkwargs)
+
+    return ax
+
 
 
 

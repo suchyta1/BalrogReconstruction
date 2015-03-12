@@ -213,7 +213,8 @@ class MCMCReconstruction(object):
         '''
         
     def ReturnHistogram(self, kind='Truth', where=None, chainstart=0, chainend=None):
-        return ReturnHistogram(self, kind=kind, recon=True, where=None, chainstart=0, chainend=None)
+        self.BuildReconHistogram(chainstart=chainstart, chainend=None)
+        return ReturnHistogram(self, kind=kind, recon=True, where=where)
 
 
 class BalrogLikelihood(object):
@@ -364,10 +365,9 @@ def GetHist(BalrogObject, kind='Truth', des=None):
     return bins, h, hh, columns
 
 
-def ReturnHistogram(Object, kind='Truth', recon=False, where=None, chainstart=0, chainend=None):
-    if kind=='RECONSTRUCTED':
+def ReturnHistogram(Object, kind='Truth', recon=False, where=None):
+    if kind.upper()=='RECONSTRUCTED':
         recon = True
-        Object.BuildReconHistogram(chainstart=chainstart, chainend=None)
 
     if not recon:
         obj = Object
