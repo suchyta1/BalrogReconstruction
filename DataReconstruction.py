@@ -77,7 +77,20 @@ def Modestify(data, byband='i'):
 
 def StarGalaxyRecon(truth, matched, des, band):
     #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['objtype_%s'%(band), 'mag_%s'%(band)], truthbins=[np.arange(0.5, 5, 2.0), np.arange(17.5,27,0.25)], measuredcolumns=['modtype_%s'%(band), 'mag_auto_%s'%(band)], measuredbins=[np.arange(0.5, 7, 2.0), np.arange(17.5,27,0.25)])
-    BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['objtype_%s'%(band), 'mag_%s'%(band)], truthbins=[np.arange(0.5, 5, 2.0), np.arange(17.5,25,0.5)], measuredcolumns=['modtype_%s'%(band), 'mag_auto_%s'%(band)], measuredbins=[np.arange(0.5, 7, 2.0), np.arange(17.5,25,0.5)])
+    size = 0.75
+    min = 17.5
+    max = 25.0
+    tbins = np.arange(min, max+size, size)
+
+    min = 17.5
+    max = 27.5
+    obins = np.arange(min, max+size, size)
+    obins = np.insert(obins, 0, -100)
+    obins = np.insert(obins, len(obins), 100)
+
+
+    #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['objtype_%s'%(band), 'mag_%s'%(band)], truthbins=[np.arange(0.5, 5, 2.0), np.arange(17.5,25,0.5)], measuredcolumns=['modtype_%s'%(band), 'mag_auto_%s'%(band)], measuredbins=[np.arange(0.5, 7, 2.0), np.arange(17.5,25,0.5)])
+    BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['objtype_%s'%(band), 'mag_%s'%(band)], truthbins=[np.arange(0.5, 5, 2.0), tbins], measuredcolumns=['modtype_%s'%(band), 'mag_auto_%s'%(band)], measuredbins=[np.arange(0.5, 7, 2.0), obins])
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
     BalrogObject.PlotTransferMatrix(fig, ax)
@@ -85,9 +98,11 @@ def StarGalaxyRecon(truth, matched, des, band):
 
     nWalkers = 1000
     #burnin = 5000
-    burnin = 10000
+    burnin = 3000
+    #burnin = 10000
     steps = 1000
-    ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
+    #ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
+    ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogThing, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
     ReconObject.BurnIn(burnin)
     ReconObject.Sample(steps)
     print np.average(ReconObject.Sampler.acceptance_fraction)
@@ -100,19 +115,16 @@ def StarGalaxyRecon(truth, matched, des, band):
     BalrogObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'BO-G', 'color':'Red'})
     ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'DO-G', 'color':'Gray'})
     ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'DR-G', 'color':'black', 'fmt':'o', 'markersize':3})
-    ax.legend(loc='best', ncol=2)
-    #ax.set_yscale('log')
-    #plt.savefig('ReconstructedHistogramsG.png')
 
-    #fig = plt.figure(3)
-    #ax = fig.add_subplot(1,1, 1)
     where = [1, None]
     BalrogObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'BT-S', 'color':'Blue', 'ls':'dashed'})
     BalrogObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'BO-S', 'color':'Red', 'ls':'dashed'})
     ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'DO-S', 'color':'Gray', 'ls':'dashed'})
     ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'DR-S', 'color':'black', 'fmt':'*', 'markersize':3})
+
     ax.legend(loc='best', ncol=2)
     ax.set_yscale('log')
+    ax.set_xlim( [min,max] )
     plt.savefig('ReconstructedHistogramsSG-%s-sva1v2.png'%(band))
 
 

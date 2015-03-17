@@ -195,6 +195,12 @@ class MCMCReconstruction(object):
         avg = np.average(subchain, axis=-1)
         std = np.std(subchain, axis=-1)
 
+        '''
+        cut = (self.Balrog.TruthHistogram1D == 0)
+        avg[cut] = 0
+        std[cut] = 0
+        '''
+
         return avg, std
 
     def DefaultReconstruct(self, burnin=1000, steps=1000):
@@ -690,11 +696,11 @@ def TwoPop(n1, n2, balrog_min, balrog_max, truthkey, simkey, falloff, wfalloff, 
 
 
 def GetSample(kind='suchyta'):
-    nbalrog = 1e6
-    nbalrog2 = 1e6
+    nbalrog = 1e5
+    nbalrog2 = 1e5
 
-    ndes = 1e6
-    ndes2 = 1e6
+    ndes = 1e5
+    ndes2 = 1e5
 
     if kind=='suchyta':
         simkey = 'mag_auto'
@@ -793,7 +799,7 @@ def MagR2D():
 
 
     nWalkers = 1000
-    burnin = 3000
+    burnin = 2000
     steps = 1000
     #ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogL, truth=des_truth, nWalkers=nWalkers)
     ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogThing, truth=des_truth, nWalkers=nWalkers)
@@ -816,7 +822,7 @@ def MagR2D():
     leg = ax.legend(loc='best', ncol=2)
     leg.draggable()
     ax.set_yscale('log')
-    ax.set_ylim([1000, 100000])
+    ax.set_ylim([1000, 10000])
 
     #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
     chains = [1, 10, -2,-1]
