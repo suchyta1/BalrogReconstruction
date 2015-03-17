@@ -699,8 +699,8 @@ def GetSample(kind='suchyta'):
     nbalrog = 1e5
     nbalrog2 = 1e5
 
-    ndes = 1e5
-    ndes2 = 1e5
+    ndes = 1e7
+    ndes2 = 1e7
 
     if kind=='suchyta':
         simkey = 'mag_auto'
@@ -822,7 +822,7 @@ def MagR2D():
     leg = ax.legend(loc='best', ncol=2)
     leg.draggable()
     ax.set_yscale('log')
-    ax.set_ylim([1000, 10000])
+    ax.set_ylim([1000, 1000000])
 
     #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
     chains = [1, 10, -2,-1]
