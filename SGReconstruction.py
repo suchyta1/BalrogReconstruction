@@ -208,7 +208,7 @@ def MakeMaps(galaxy, star, hpIndex, nside, version, nest=False):
 def DoStarGalaxy(select, mcmc, map):
     band = select['bands'][0]
     bi = 'balrog_index_%s' %(band)
-    #truth, matched, nosim, des = DBfunctions.GetAllViaTileQuery(select, limit=8)
+    #truth, matched, nosim, des = DBfunctions.GetAllViaTileQuery(select, limit=40)
     truth, matched, nosim, des = DBfunctions.GetAllViaTileQuery(select)
 
     if MPI.COMM_WORLD.Get_rank()==0:
@@ -295,7 +295,7 @@ if __name__=='__main__':
     MapConfig = {'nside': 64,
                  #'nside': 256,
                  'nest': False,
-                 'version': 'v6',
+                 'version': 'v10',
                  'summin': 22.5,
                  'summax': 24.5}
 
@@ -311,7 +311,9 @@ if __name__=='__main__':
                   'measuredcolumns': ['modtype_%s'%(band), 'mag_auto_%s'%(band)],
                   'measuredbins': [np.arange(0.5, 7, 2.0), np.arange(17.5,25,0.25)],
                   'burnin': 6000,
+                  #'burnin': 12000,
                   'steps': 1000,
+                  #'nWalkers': 2000,
                   'nWalkers': 1000,
                   'out': 'SGPlots-%s'%(MapConfig['version']),
                  }

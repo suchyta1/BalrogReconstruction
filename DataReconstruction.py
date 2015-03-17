@@ -8,16 +8,17 @@ import sys
 import healpy as hp
 import numpy.lib.recfunctions as recfunctions
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 from mpi4py import MPI
 import mpifunctions
 import DBfunctions
 import MCMC
 import healpyfunctions
 
-import matplotlib
-#matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def GetAllViaTileQuery(select):
@@ -75,11 +76,12 @@ def Modestify(data, byband='i'):
 
 
 def StarGalaxyRecon(truth, matched, des, band):
-    BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['objtype_%s'%(band), 'mag_%s'%(band)], truthbins=[np.arange(0.5, 5, 2.0), np.arange(17.5,27,0.25)], measuredcolumns=['modtype_%s'%(band), 'mag_auto_%s'%(band)], measuredbins=[np.arange(0.5, 7, 2.0), np.arange(17.5,27,0.25)])
+    #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['objtype_%s'%(band), 'mag_%s'%(band)], truthbins=[np.arange(0.5, 5, 2.0), np.arange(17.5,27,0.25)], measuredcolumns=['modtype_%s'%(band), 'mag_auto_%s'%(band)], measuredbins=[np.arange(0.5, 7, 2.0), np.arange(17.5,27,0.25)])
+    BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=['objtype_%s'%(band), 'mag_%s'%(band)], truthbins=[np.arange(0.5, 5, 2.0), np.arange(17.5,25,0.5)], measuredcolumns=['modtype_%s'%(band), 'mag_auto_%s'%(band)], measuredbins=[np.arange(0.5, 7, 2.0), np.arange(17.5,25,0.5)])
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
     BalrogObject.PlotTransferMatrix(fig, ax)
-    plt.savefig('TransferMatrixSG-%s-sva1v3.png'%(band))
+    plt.savefig('TransferMatrixSG-%s-sva1v2.png'%(band))
 
     nWalkers = 1000
     #burnin = 5000
@@ -111,7 +113,7 @@ def StarGalaxyRecon(truth, matched, des, band):
     ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'DR-S', 'color':'black', 'fmt':'*', 'markersize':3})
     ax.legend(loc='best', ncol=2)
     ax.set_yscale('log')
-    plt.savefig('ReconstructedHistogramsSG-%s-sva1v3.png'%(band))
+    plt.savefig('ReconstructedHistogramsSG-%s-sva1v2.png'%(band))
 
 
     #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
@@ -121,7 +123,7 @@ def StarGalaxyRecon(truth, matched, des, band):
         ax = fig.add_subplot(1,len(chains), i+1)
         ReconObject.PlotChain(ax, chains[i], plotkwargs={'color':'black', 'linewidth':0.005})
     fig.tight_layout()
-    plt.savefig('chainsSG-%s-sva1v3.png'%(band))
+    plt.savefig('chainsSG-%s-sva1v2.png'%(band))
 
 
 
@@ -130,7 +132,7 @@ def StarGalaxyRecon(truth, matched, des, band):
 
 if __name__=='__main__': 
 
-    select = {'table': 'sva1v3',
+    select = {'table': 'sva1v2',
               'des': 'sva1_coadd_objects',
               'bands': ['i'],
               'truth': ['balrog_index', 'mag', 'ra', 'dec', 'objtype'],

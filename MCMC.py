@@ -17,6 +17,8 @@ import subprocess
 import numpy as np
 import scipy.spatial
 import scipy.interpolate
+import scipy.misc
+import scipy.special
 from sklearn.neighbors import NearestNeighbors
 import numpy.lib.recfunctions as recfunctions
 
@@ -107,6 +109,14 @@ class MCMCReconstruction(object):
         while np.sum(cut) >0:
             self.StartGuess[cut] = const + (const/2.0) * np.random.randn(np.sum(cut))
             cut = (self.StartGuess <= 1)
+        '''
+        g = np.repeat( np.reshape(1+self.Balrog.TruthHistogram1D, (1, len(self.Balrog.TruthHistogram1D))), self.nWalkers, axis=0)
+        self.StartGuess = np.sqrt(g)*np.random.randn(nWalkers, self.Balrog.TransferMatrix.shape[1]) + g 
+        cut = (self.StartGuess <= 1)
+        while np.sum(cut) > 0:
+            self.StartGuess[cut] = np.sqrt(g[cut])*np.random.randn(len(self.StartGuess[cut])) + g[cut]
+            cut = (self.StartGuess <= 1)
+        '''
 
         if samplelog:
             self.samplelog = True
@@ -118,6 +128,7 @@ class MCMCReconstruction(object):
         self.CovTruth = np.diag(self.Balrog.TruthHistogram1D * self.Balrog.Window) 
         self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.CovTruth, np.transpose(self.Balrog.TransferMatrix))) + np.diag(self.MeasuredHistogram1D)
         self.iCovObs = np.linalg.inv(self.CovObs + self.reg)
+        #self.iCovObs = np.linalg.inv(20*self.CovObs + self.reg)
 
         #self.reg = reg * np.identity(self.Balrog.TransferMatrix.shape[0])
         #self.CovTruth = np.diag(self.Balrog.TruthHistogram1D) 
@@ -500,6 +511,7 @@ def PlotHist(BalrogObject, ax, kind='Truth', des=None, where=None, ferr=False, p
 
 
 def ObjectLogL(Truth, ReconObject):
+    t1 = time.time()
     if ReconObject.samplelog:
         if np.sum(Truth < -20) > 0:
             return -np.inf
@@ -515,6 +527,8 @@ def ObjectLogL(Truth, ReconObject):
         delta = TruthObs - ReconObject.MeasuredHistogram1D
         logL = -0.5 * np.dot(np.transpose(delta), np.dot(ReconObject.iCovObs,delta))
 
+    t2 = time.time()
+    #print t2 - t1
     return logL
 
 
@@ -536,27 +550,82 @@ def LogL(ThisWalker, TransferMatrix, Window, Observed, iCov):
     #print t2 - t1
     return logL
 
-    
+   
+def LogFactorial(n, thresh=20):
+    cut = (n > thresh)
+    nn = np.copy(n)
+    nn[-cut] = np.log(scipy.misc.factorial(n[-cut]))
+    nn[cut] = n[cut] * (np.log(n[cut])-1)
+    return nn
 
-def LogLike(Truth, TransferMatrix, Window, Observed):
+
+def ObjectLogThing(Truth, ReconObject):
+    if np.sum(Truth <= 0) > 0:
+        return -np.inf
+    #pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+    #punobs =  np.sum(ReconObject.Balrog.MeasuredHistogram1D) / float( np.sum(ReconObject.Balrog.TruthHistogram1D) )
+
+    #pobs = np.float64(ReconObject.Balrog.MeasuredHistogram1D) / np.sum(ReconObject.Balrog.TruthHistogram1D)
+    #pobs = np.float64(ReconObject.Balrog.MeasuredHistogram1D) / len(ReconObject.Balrog.FullTruth)
+    pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+    punobs =  1.0 - np.sum(pobs)
+    Nunobs = np.sum(Truth*(1.0-ReconObject.Balrog.Window))
+    Nobs = np.sum(ReconObject.MeasuredHistogram1D)
+
+    t4 = np.dot(np.transpose(ReconObject.MeasuredHistogram1D), np.log(pobs))
+    t5 = Nunobs * np.log(punobs)
+    t1 = scipy.special.gammaln(1 + Nunobs + Nobs)
+    t2 = scipy.special.gammaln(1 + Nunobs)
+    t3 = np.sum(scipy.special.gammaln(1 + ReconObject.MeasuredHistogram1D))
+    logL = t1 - t2 - t3 + t4 + t5
+    return logL
+
+
+def ObjectLogLike(Truth, ReconObject):
     t1 = time.time()
 
     if np.sum(Truth < 0) > 0:
         return -np.inf
     if np.sum(Truth)==0:
         return -np.inf
-    
-    logarg = np.dot(TransferMatrix, np.power(Truth*Window, 2.0)/np.sum(Truth))
+   
+    '''
+    logarg = np.dot(ReconObject.Balrog.TransferMatrix, np.power(Truth*ReconObject.Balrog.Window, 2.0)/np.sum(Truth))
     if np.sum(logarg < 0) > 0:
         return -np.inf
-    detpiece = np.dot(np.transpose(Observed), np.log(logarg))
+    detpiece = np.dot(np.transpose(ReconObject.MeasuredHistogram1D), np.log(logarg))
+    '''
+    obs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window)
+    logarg = obs / np.sum(obs)
+    if np.sum(logarg < 0) > 0:
+        return -np.inf
+    detpiece = np.dot(np.transpose(ReconObject.MeasuredHistogram1D), np.log(logarg))
 
-    unWindow = np.zeros(len(window))
-    cut = (Window==1)
-    unWindow[-cut] = (1.0-Window[-cut]) * np.log(1.0-Window[-cut])
+    unWindow = np.zeros(len(ReconObject.Balrog.Window))
+    cut = (ReconObject.Balrog.Window==1)
+    unWindow[-cut] = (1.0-ReconObject.Balrog.Window[-cut]) * np.log(1.0-ReconObject.Balrog.Window[-cut])
     undetpiece = np.sum(Truth*unWindow)
 
-    logL = detpiece + undetpiece
+    nundet = (1.0-ReconObject.Balrog.Window) * Truth
+    upiece = scipy.special.gammaln(1+np.sum(nundet)) - np.sum(scipy.special.gammaln(1+nundet)) + undetpiece
+    dpiece = scipy.special.gammaln(1+np.sum(ReconObject.MeasuredHistogram1D)) - np.sum(scipy.special.gammaln(1+ReconObject.MeasuredHistogram1D)) + detpiece
+
+    '''
+    fnundet = LogFactorial(nundet)
+    lsum = np.sum(fnundet)
+    s = np.array([np.sum(nundet)])
+    llsum = LogFactorial(s)[0]
+    upiece = llsum - lsum + undetpiece
+
+    fndet = LogFactorial(ReconObject.MeasuredHistogram1D)
+    lsum = np.sum(fndet)
+    s = np.array([np.sum(fndet)])
+    llsum = LogFactorial(s)[0]
+    dpiece = llsum - lsum + detpiece
+    '''
+
+    logL = upiece + dpiece
+    #logL = detpiece + undetpiece
     #logL = detpiece
 
     t2 = time.time()
@@ -714,9 +783,10 @@ def MagR2D():
 
 
     nWalkers = 1000
-    burnin = 5000
+    burnin = 3000
     steps = 1000
-    ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogL, truth=des_truth, nWalkers=nWalkers)
+    #ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogL, truth=des_truth, nWalkers=nWalkers)
+    ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogThing, truth=des_truth, nWalkers=nWalkers)
     ReconObject.BurnIn(burnin)
     ReconObject.Sample(steps)
     print np.average(ReconObject.Sampler.acceptance_fraction)

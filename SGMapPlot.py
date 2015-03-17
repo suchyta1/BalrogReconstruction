@@ -105,6 +105,7 @@ def PlotRecon(ax, file, ext, hp, errext=None, kind='plot', coordsext=-2, hpext=-
     elif kind=='errorbar':
         ax.errorbar(coords, vals, err, **plotkwargs)
 
+
     return ax
 
 
@@ -124,13 +125,17 @@ class ReconPlotter(object):
 
 
 if __name__=='__main__': 
-    map = {'nside': 256,
+    map = {#'nside': 256,
+           'nside': 64,
            'nest': False,
-           'version': 'v1.1',
+           #'version': 'v1.1',
+           'version': 'corr',
            'summin': 22.5,
            'summax': 24.5
           }
     colorkwargs = {'gmin': -1, 'gmax': 1, 'smin':-1, 'smax':1}
-    rfile = 'SG-Data-Reconstructed-v1.fits'
+
+    rfile = 'SG-Data-Reconstructed-v9.fits'
+    #rfile = 'SG-Data-Observed-v9.fits'
     SGRecon2Map(rfile, map['version'], magmin=map['summin'], magmax=map['summax'], nside=map['nside'], nest=map['nest'], colorkwargs=colorkwargs)
 
