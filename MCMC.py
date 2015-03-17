@@ -124,6 +124,7 @@ class MCMCReconstruction(object):
         else:
             self.samplelog = False
 
+
         self.reg = reg * np.identity(self.Balrog.TransferMatrix.shape[0])
         self.CovTruth = np.diag(self.Balrog.TruthHistogram1D * self.Balrog.Window) 
         self.CovObs = np.dot(self.Balrog.TransferMatrix, np.dot(self.CovTruth, np.transpose(self.Balrog.TransferMatrix))) + np.diag(self.MeasuredHistogram1D)
@@ -210,7 +211,7 @@ class MCMCReconstruction(object):
         self.ReconHistogramND = np.reshape(self.ReconHistogram1D, dims)
         self.ReconHistogramNDErr = np.reshape(self.ReconHistogram1DErr, dims)
 
-    def PlotReconHistogram1D(self, ax, where=None, plotkwargs={}, chainstart=None, chainend=None):
+    def PlotReconHistogram1D(self, ax, where=None, plotkwargs={}, chainstart=0, chainend=None):
         self.BuildReconHistogram(chainstart=chainstart, chainend=chainend)
         ax = PlotHist(self.Balrog, ax, des=self, kind='Reconstructed', where=where, ferr=True, plotkwargs=plotkwargs)
         return ax
@@ -559,7 +560,7 @@ def LogFactorial(n, thresh=20):
     return nn
 
 
-def ObjectLogThing(Truth, ReconObject):
+def ObjectLogThing(Truth, ReconObject, pmin=1.0e-20):
     if np.sum(Truth <= 0) > 0:
         return -np.inf
     #pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
@@ -567,8 +568,15 @@ def ObjectLogThing(Truth, ReconObject):
 
     #pobs = np.float64(ReconObject.Balrog.MeasuredHistogram1D) / np.sum(ReconObject.Balrog.TruthHistogram1D)
     #pobs = np.float64(ReconObject.Balrog.MeasuredHistogram1D) / len(ReconObject.Balrog.FullTruth)
-    pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+
+    #pobs = np.zeros(ReconObject.Balrog.TransferMatrix.shape[0])
+    pobs = pmin + np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+    if np.sum(pobs <= 0) > 0:
+        return -np.inf
     punobs =  1.0 - np.sum(pobs)
+    if np.sum(punobs <= 0) > 0:
+        return -np.inf
+
     Nunobs = np.sum(Truth*(1.0-ReconObject.Balrog.Window))
     Nobs = np.sum(ReconObject.MeasuredHistogram1D)
 
@@ -693,6 +701,8 @@ def GetSample(kind='suchyta'):
         truthkey = 'mag'
         balrog_min = 16
         balrog_max = 28
+        #balrog_min = 15
+        #balrog_max = 29
         falloff = 20
         wfalloff = 0.1
 
@@ -758,7 +768,7 @@ def Mag1D():
     ReconObject.PlotTruthHistogram1D(ax=ax, plotkwargs={'label':'Data Truth', 'color':'Blue'})
     ReconObject.PlotMeasuredHistogram1D(ax=ax, plotkwargs={'label':'Data Observed', 'color':'LightBlue'})
     ReconObject.PlotReconHistogram1D(ax=ax, plotkwargs={'label':'Data Reconstructed', 'color':'black', 'fmt':'o', 'markersize':3})
-    ax.legend(loc='best', ncol=2)
+    leg = ax.legend(loc='best', ncol=2)
     ax.set_yscale('log')
 
     #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
@@ -775,7 +785,7 @@ def Mag1D():
 def MagR2D():
     truth, observed, des_truth, des_observed, truthcolumns, measuredcolumns = GetSample(kind='suchyta')
     #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['size','mag'], truthbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)], measuredcolumns=['size_auto','mag_auto'], measuredbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)])
-    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28, 0.75)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(16,28, 0.75)])
+    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.5)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(14.5,29.5, 0.5)])
 
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
@@ -802,14 +812,17 @@ def MagR2D():
     ReconObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'Data Truth', 'color':'Blue'})
     ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'Data Observed', 'color':'LightBlue'})
     ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'Data Reconstructed', 'color':'black', 'fmt':'o', 'markersize':3})
-    ax.legend(loc='best', ncol=2)
+
+    leg = ax.legend(loc='best', ncol=2)
+    leg.draggable()
     ax.set_yscale('log')
+    ax.set_ylim([1000, 100000])
 
     #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
-    chains = [1, 10, -3, -2]
+    chains = [1, 10, -2,-1]
     fig = plt.figure(3, figsize=(16,6))
     for i in range(len(chains)):
-        ax = fig.add_subplot(1,len(chains), i)
+        ax = fig.add_subplot(1,len(chains), i+1)
         ReconObject.PlotChain(ax, chains[i], plotkwargs={'color':'black', 'linewidth':0.005})
     fig.tight_layout()
     
