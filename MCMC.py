@@ -799,7 +799,8 @@ def MagR2D():
 
 
     nWalkers = 1000
-    burnin = 2000
+    #burnin = 2000
+    burnin = 5000
     steps = 1000
     #ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogL, truth=des_truth, nWalkers=nWalkers)
     ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogThing, truth=des_truth, nWalkers=nWalkers)
