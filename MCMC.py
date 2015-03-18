@@ -103,7 +103,9 @@ class MCMCReconstruction(object):
         self.nParams = self.Balrog.TransferMatrix.shape[1]
 
         #self.StartGuess = np.random.rand(nWalkers, self.Balrog.TransferMatrix.shape[1]) + np.reshape(self.Balrog.TruthHistogram1D, (1, len(self.Balrog.TruthHistogram1D)))
-        const = float(self.Balrog.FullTruth.size) / self.Balrog.TruthHistogram1D.shape[0]
+        #const = float(self.Balrog.FullTruth.size) / self.Balrog.TruthHistogram1D.shape[0]
+        const = float(self.Measured.size) / self.Balrog.TruthHistogram1D.shape[0]
+        
         self.StartGuess = const + (const/2.0) * np.random.randn(self.nWalkers, self.Balrog.TransferMatrix.shape[1])
         cut = (self.StartGuess <= 1)
         while np.sum(cut) >0:
@@ -699,8 +701,8 @@ def GetSample(kind='suchyta'):
     nbalrog = 1e5
     nbalrog2 = 1e5
 
-    ndes = 1e7
-    ndes2 = 1e7
+    ndes = 1e5
+    ndes2 = 1e5
 
     if kind=='suchyta':
         simkey = 'mag_auto'
@@ -799,9 +801,9 @@ def MagR2D():
 
 
     nWalkers = 1000
-    #burnin = 2000
+    burnin = 3000
     #burnin = 5000
-    burnin = 10000
+    #burnin = 10000
     steps = 1000
     #ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogL, truth=des_truth, nWalkers=nWalkers)
     ReconObject = MCMCReconstruction(BalrogObject, des_observed, ObjectLogThing, truth=des_truth, nWalkers=nWalkers)
@@ -821,10 +823,10 @@ def MagR2D():
     ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'Data Observed', 'color':'LightBlue'})
     ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'Data Reconstructed', 'color':'black', 'fmt':'o', 'markersize':3})
 
-    leg = ax.legend(loc='best', ncol=2)
-    leg.draggable()
+    #leg = ax.legend(loc='best', ncol=2)
+    #leg.draggable()
     ax.set_yscale('log')
-    ax.set_ylim([1000, 1000000])
+    #ax.set_ylim([100, 1000000])
 
     #ReconObject.PlotAllChains(plotkwargs={'color':'black', 'linewidth':0.005})
     chains = [1, 10, -2,-1]
