@@ -84,12 +84,19 @@ def PlotHealPixel(ax, hpIndex, tfile, ofile, dfile, rfile):
     ax.set_yscale('log')
 
 
-def PlotRecon(ax, file, ext, hp, errext=None, kind='plot', coordsext=-2, hpext=-1, plotkwargs={}):
+def PlotRecon(ax, file, ext, hp, errext=None, kind='plot', coordsext=-2, hpext=-1, plotkwargs={}, normed=True):
     hdus = pyfits.open(file)
-    hps = hdus[hpext].data['hpIndex']
     norm = 1.0/hdus[hpext].data['numTruth'] * np.power(10.0,5.0)/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(3600.0, 2.0)
 
-    line = np.arange(len(hps))[hps==hp][0]
+    if not normed:
+        norm[:] = 1.0
+
+    if hp is not None:
+        hps = hdus[hpext].data['hpIndex']
+        line = np.arange(len(hps))[hps==hp][0]
+    else:
+        line = 0
+
     coords = hdus[coordsext].data
     vals = hdus[ext].data[line, :] * norm[line]
 
@@ -110,17 +117,126 @@ def PlotRecon(ax, file, ext, hp, errext=None, kind='plot', coordsext=-2, hpext=-
 
 
 class ReconPlotter(object):
-    def __init__(self, dir, version):
+    def __init__(self, dir, version, hpfield='hpIndex', jfield='jacknife'):
         self.version = version
         self.dir = dir
         self.obsfile = os.path.join(self.dir, 'SG-Balrog-Observed-%s.fits' %(self.version))
         self.truthfile = os.path.join(self.dir,'SG-Balrog-Truth-%s.fits' %(self.version))
         self.datafile = os.path.join(self.dir, 'SG-Data-Observed-%s.fits' %(self.version))
         self.reconfile = os.path.join(self.dir, 'SG-Data-Reconstructed-%s.fits' %(self.version))
-        self.HealPixels = pyfits.open(self.reconfile)[-1].data['hpIndex']
+
+        self.hpfield = hpfield
+        self.jfield = jfield
+
+
+    def HealPixels(self):
+        return pyfits.open(self.reconfile)[-1].data[self.hpfield]
 
     def PlotHP(self, ax, hpIndex):
         PlotHealPixel(ax, hpIndex, self.truthfile, self.obsfile, self.datafile, self.reconfile);
+
+    def Plot(self, ax, hpIndex=None):
+        PlotHealPixel(ax, hpIndex, self.truthfile, self.obsfile, self.datafile, self.reconfile);
+
+
+def setkwargs(plotkwargs, kwargs):
+    for key in kwargs:
+        plotkwargs[key] = kwargs[key]
+    return plotkwargs
+
+def SetKwargs(plotkwargs, kwargs1, kwargs2):
+    plotkwargs = setkwargs(plotkwargs, kwargs1)
+    plotkwargs = setkwargs(plotkwargs, kwargs2)
+    return plotkwargs
+
+
+class HPJPlotter(object):
+    def __init__(self, dir, version, hpfield='hpIndex', jfield='jacknife'):
+        self.version = version
+        self.dir = dir
+        self.obsfile = os.path.join(self.dir, 'SG-Balrog-Observed-%s.fits' %(self.version))
+        self.truthfile = os.path.join(self.dir,'SG-Balrog-Truth-%s.fits' %(self.version))
+        self.datafile = os.path.join(self.dir, 'SG-Data-Observed-%s.fits' %(self.version))
+        self.reconfile = os.path.join(self.dir, 'SG-Data-Reconstructed-%s.fits' %(self.version))
+        self.hpfield = hpfield
+        self.jfield = jfield
+
+
+    def PlotJErr(self, ax, ext, hp=0, coordsext=-2, hpext=-1, plotkwargs={}, normed=True, js=1):
+        hdus = pyfits.open(self.reconfile)
+        norm = 1.0/(hdus[hpext].data['numTruth']*js) * np.power(10.0,5.0)/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(60.0, 2.0)
+
+        #norm = np.reshape(norm, (len(norm),1))
+        hpcut = (hdus[hpext].data[self.hpfield] == hp)
+        lines = np.arange(len(hpcut))[hpcut]
+        coords = hdus[coordsext].data
+        vals = hdus[ext].data[lines, :] * np.reshape(norm[lines], (len(norm[lines]),1))
+        avg = np.average(vals, axis=0)
+        std = np.std(vals, axis=0)
+        ax.errorbar(coords, avg, std, **plotkwargs)
+        return ax
+
+
+
+    def Plot(self, ax, curve='recon', obj='galaxy', plotkwargs={}, hp=0, jack=0, js=1 ):
+        if obj=='galaxy':
+            ext = 1
+            if curve=='recon':
+                errext = 3
+            else:
+                errext = None
+        elif obj=='star':
+            ext = 2
+            if curve=='recon':
+                errext = 4
+            else:
+                errext = None
+
+        if curve=='recon':
+            file = self.reconfile
+            kind = 'errorbar'
+        elif curve=='des':
+            file = self.desfile
+            kind = 'plot'
+        elif curve=='obs':
+            file = self.obsfile
+            kind = 'plot'
+        elif curve=='truth':
+            file = self.truthfile
+            kind = 'plot'
+
+        self.PlotRecon(ax, file, ext, hp, jack, errext=errext, kind=kind, plotkwargs=plotkwargs, js=js) 
+
+
+    def PlotRecon(self, ax, file, ext, hp, jack, errext=None, kind='plot', coordsext=-2, hpext=-1, plotkwargs={}, normed=True, js=1):
+        hdus = pyfits.open(file)
+        norm = 1.0/(hdus[hpext].data['numTruth']*js) * np.power(10.0,5.0)/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(60.0, 2.0)
+
+        #print hdus[hpext].data['numTruth']
+
+        if not normed:
+            norm[:] = 1.0
+
+        hpcut = (hdus[hpext].data[self.hpfield] == hp)
+        jcut = (hdus[hpext].data[self.jfield] == jack)
+        line = np.where(hpcut & jcut)[0][0]
+
+        coords = hdus[coordsext].data
+        vals = hdus[ext].data[line, :] * norm[line]
+
+        ax.set_title(r'Raw Number = %i' %(hdus[hpext].data['numTruth'][line]))
+
+        if errext!=None:
+            err = hdus[errext].data[line, :] * norm[line]
+        
+        if kind=='plot':
+            ax.plot(coords, vals, **plotkwargs)
+        elif kind=='scatter':
+            ax.scatter(coords, vals, **plotkwargs)
+        elif kind=='errorbar':
+            ax.errorbar(coords, vals, err, **plotkwargs)
+
+        return ax
 
 
 
