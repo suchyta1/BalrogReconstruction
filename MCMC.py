@@ -824,7 +824,7 @@ def Mag1D():
 def MagR2D():
     truth, observed, des_truth, des_observed, truthcolumns, measuredcolumns = GetSample(kind='suchyta')
     #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['size','mag'], truthbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)], measuredcolumns=['size_auto','mag_auto'], measuredbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)])
-    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.5)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(15.5,29.5, 0.5)])
+    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.5)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(16,29.5, 0.5)])
 
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
