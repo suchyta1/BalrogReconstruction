@@ -163,6 +163,7 @@ class MCMCReconstruction(object):
         thist, edge = np.histogramdd(Measured, bins=self.Balrog.TruthBins)
         guess = thist.flatten() / self.Balrog.Window
 
+
         #guess = np.reshape( np.repeat(guess, self.nWalkers), (self.nWalkers,self.Balrog.TransferMatrix.shape[1]) )
         guess = np.repeat([guess], self.nWalkers, axis=0)
         self.StartGuess = guess + (noise*guess) * np.random.randn(self.nWalkers, self.Balrog.TransferMatrix.shape[1])
