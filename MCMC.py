@@ -156,14 +156,15 @@ class MCMCReconstruction(object):
             self.BuildTruthHist()
 
 
-    def GuessByWindow(self, noise=0.01):
+    def GuessByWindow(self, noise=0.1):
         Measured = np.zeros( (len(self.Measured), len(self.Balrog.MeasuredColumns)) )
         for j in range(len(self.Balrog.MeasuredColumns)):
             Measured[:,j] = self.Measured[self.Balrog.MeasuredColumns[j]]
         thist, edge = np.histogramdd(Measured, bins=self.Balrog.TruthBins)
         guess = thist.flatten() / self.Balrog.Window
 
-        guess = np.reshape( np.repeat(guess, self.nWalkers), (self.nWalkers,self.Balrog.TransferMatrix.shape[1]) )
+        #guess = np.reshape( np.repeat(guess, self.nWalkers), (self.nWalkers,self.Balrog.TransferMatrix.shape[1]) )
+        guess = np.repeat([guess], self.nWalkers, axis=0)
         self.StartGuess = guess + (noise*guess) * np.random.randn(self.nWalkers, self.Balrog.TransferMatrix.shape[1])
         cut = (self.StartGuess <= 1)
         while np.sum(cut) > 0:
@@ -728,8 +729,8 @@ def TwoPop(n1, n2, balrog_min, balrog_max, truthkey, simkey, falloff, wfalloff, 
 
 
 def GetSample(kind='suchyta'):
-    nbalrog = 1e5
-    nbalrog2 = 1e5
+    nbalrog = 1e6
+    nbalrog2 = 1e6
 
     ndes = 1e5
     ndes2 = 1e5
@@ -823,7 +824,7 @@ def Mag1D():
 def MagR2D():
     truth, observed, des_truth, des_observed, truthcolumns, measuredcolumns = GetSample(kind='suchyta')
     #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['size','mag'], truthbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)], measuredcolumns=['size_auto','mag_auto'], measuredbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)])
-    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.5)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(14.5,29.5, 0.5)])
+    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.5)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(15.5,29.5, 0.5)])
 
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
