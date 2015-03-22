@@ -595,6 +595,8 @@ def LogFactorial(n, thresh=20):
 def ObjectLogThing(Truth, ReconObject, pmin=1.0e-20):
     if np.sum(Truth <= 0) > 0:
         return -np.inf
+
+    '''
     #pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
     #punobs =  np.sum(ReconObject.Balrog.MeasuredHistogram1D) / float( np.sum(ReconObject.Balrog.TruthHistogram1D) )
 
@@ -602,7 +604,11 @@ def ObjectLogThing(Truth, ReconObject, pmin=1.0e-20):
     #pobs = np.float64(ReconObject.Balrog.MeasuredHistogram1D) / len(ReconObject.Balrog.FullTruth)
 
     #pobs = np.zeros(ReconObject.Balrog.TransferMatrix.shape[0])
-    pobs = pmin + np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+    '''
+
+    #pobs = pmin + np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+    pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+
     if np.sum(pobs <= 0) > 0:
         return -np.inf
     punobs =  1.0 - np.sum(pobs)

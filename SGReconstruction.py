@@ -406,6 +406,7 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
     #ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
     #ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10, samplelog=True)
     ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogThing, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
+    #ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogThing, truth=truth, nWalkers=nWalkers, reg=1.0e-10, samplelog=True)
     ReconObject.BurnIn(burnin, clear=False)
 
     c = len(truthbins[-1]) - 2
