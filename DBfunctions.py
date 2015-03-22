@@ -234,6 +234,7 @@ def GetAllViaTileQuery(select, limit=None):
         tiles = arr['tilename']
         if limit!=None:
             tiles = tiles[0:limit]
+        print len(tiles), 'tiles'
     else:
         tiles = None
 

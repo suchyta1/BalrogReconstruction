@@ -151,7 +151,7 @@ def SetKwargs(plotkwargs, kwargs1, kwargs2):
 
 
 class HPJPlotter(object):
-    def __init__(self, dir, version, hpfield='hpIndex', jfield='jacknife'):
+    def __init__(self, dir, version, hpfield='hpIndex', jfield='jacknife', p2a=1.0e3, pscale=0.27):
         self.version = version
         self.dir = dir
         self.obsfile = os.path.join(self.dir, 'SG-Balrog-Observed-%s.fits' %(self.version))
@@ -160,25 +160,49 @@ class HPJPlotter(object):
         self.reconfile = os.path.join(self.dir, 'SG-Data-Reconstructed-%s.fits' %(self.version))
         self.hpfield = hpfield
         self.jfield = jfield
+        self.p2a = p2a
+        self.pscale = pscale
 
 
-    def PlotJErr(self, ax, ext, hp=0, coordsext=-2, hpext=-1, plotkwargs={}, normed=True, js=1):
+    def PlotJErr(self, ax, ext, hp=0, coordsext=-2, hpext=-1, plotkwargs={}, normed=True, plus=2, jd=1, log=False):
         hdus = pyfits.open(self.reconfile)
-        norm = 1.0/(hdus[hpext].data['numTruth']*js) * np.power(10.0,5.0)/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(60.0, 2.0)
-
-        #norm = np.reshape(norm, (len(norm),1))
-        hpcut = (hdus[hpext].data[self.hpfield] == hp)
+        hpcut = (hdus[hpext].data[self.hpfield] == hp) & (hdus[hpext].data[self.jfield]!=-1)
+        jcut = (hdus[hpext].data[self.hpfield] == hp) & (hdus[hpext].data[self.jfield]==-1)
         lines = np.arange(len(hpcut))[hpcut]
-        coords = hdus[coordsext].data
+        jline = np.arange(len(hpcut))[jcut][0]
+
+        #norm = 1.0/(hdus[hpext].data['numTruth']) * np.power(10.0,5.0)/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(60.0, 2.0)
+        #norm = np.array( [1.0/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(60.0, 2.0)]*len(hdus[hpext].data) )
+
+        nt = hdus[hpext].data['numTruth'][jline]
+        area = nt * self.p2a * np.power(self.pscale/60.0, 2)
+        norm = jd * 1.0 / area
+        norm = np.array([norm]*len(hpcut))
+
         vals = hdus[ext].data[lines, :] * np.reshape(norm[lines], (len(norm[lines]),1))
         avg = np.average(vals, axis=0)
-        std = np.std(vals, axis=0)
-        ax.errorbar(coords, avg, std, **plotkwargs)
+        std = np.std(vals, axis=0) / np.sqrt(np.sum(hpcut)-1)
+        if log:
+            std = std / (avg * np.log(10))
+            avg = np.log10(avg)
+
+        #print std
+
+        #std = np.std(vals, axis=0)
+        #v = hdus[ext+plus].data[jline, :] * norm[jline] / jd
+        #err = np.sqrt(std*std + v*v)
+        err = std
+
+        #print std, v
+
+        coords = hdus[coordsext].data
+        #ax.errorbar(coords, avg, std, **plotkwargs)
+        ax.errorbar(coords, avg, err, **plotkwargs)
         return ax
 
 
 
-    def Plot(self, ax, curve='recon', obj='galaxy', plotkwargs={}, hp=0, jack=0, js=1 ):
+    def Plot(self, ax, curve='recon', obj='galaxy', plotkwargs={}, hp=0, jack=0, log=False):
         if obj=='galaxy':
             ext = 1
             if curve=='recon':
@@ -196,7 +220,7 @@ class HPJPlotter(object):
             file = self.reconfile
             kind = 'errorbar'
         elif curve=='des':
-            file = self.desfile
+            file = self.datafile
             kind = 'plot'
         elif curve=='obs':
             file = self.obsfile
@@ -205,26 +229,35 @@ class HPJPlotter(object):
             file = self.truthfile
             kind = 'plot'
 
-        self.PlotRecon(ax, file, ext, hp, jack, errext=errext, kind=kind, plotkwargs=plotkwargs, js=js) 
+        return self.PlotRecon(ax, file, ext, hp, jack, errext=errext, kind=kind, plotkwargs=plotkwargs, log=log) 
 
 
-    def PlotRecon(self, ax, file, ext, hp, jack, errext=None, kind='plot', coordsext=-2, hpext=-1, plotkwargs={}, normed=True, js=1):
+    def PlotRecon(self, ax, file, ext, hp, jack, errext=None, kind='plot', coordsext=-2, hpext=-1, plotkwargs={}, normed=True, log=False):
         hdus = pyfits.open(file)
-        norm = 1.0/(hdus[hpext].data['numTruth']*js) * np.power(10.0,5.0)/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(60.0, 2.0)
+        hpcut = (hdus[hpext].data[self.hpfield] == hp)
+        jcut = (hdus[hpext].data[self.jfield] == jack)
+        line = np.where(hpcut & jcut)[0][0]
+
+        #norm = 1.0/(hdus[hpext].data['numTruth']) * np.power(10.0,5.0)/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(60.0, 2.0)
+        #norm = np.array( [1.0/np.power(np.power(10.0, 4.0), 2.0) * 1.0/np.power(0.27, 2.0) * np.power(60.0, 2.0)]*len(hdus[hpext].data) )
+
+        nt = hdus[hpext].data['numTruth'][line]
+        area = nt * self.p2a * np.power(self.pscale/60.0, 2)
+        norm = 1.0 / area
+        norm = np.array([norm]*len(hpcut))
 
         #print hdus[hpext].data['numTruth']
 
         if not normed:
             norm[:] = 1.0
 
-        hpcut = (hdus[hpext].data[self.hpfield] == hp)
-        jcut = (hdus[hpext].data[self.jfield] == jack)
-        line = np.where(hpcut & jcut)[0][0]
 
         coords = hdus[coordsext].data
         vals = hdus[ext].data[line, :] * norm[line]
+        if log:
+            vals = np.log10(vals)
 
-        ax.set_title(r'Raw Number = %i' %(hdus[hpext].data['numTruth'][line]))
+        #ax.set_title(r'Raw Number = %i' %(hdus[hpext].data['numTruth'][line]))
 
         if errext!=None:
             err = hdus[errext].data[line, :] * norm[line]

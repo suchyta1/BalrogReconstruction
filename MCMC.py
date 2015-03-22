@@ -105,12 +105,17 @@ class MCMCReconstruction(object):
         #self.StartGuess = np.random.rand(nWalkers, self.Balrog.TransferMatrix.shape[1]) + np.reshape(self.Balrog.TruthHistogram1D, (1, len(self.Balrog.TruthHistogram1D)))
         #const = float(self.Balrog.FullTruth.size) / self.Balrog.TruthHistogram1D.shape[0]
         const = float(self.Measured.size) / self.Balrog.TruthHistogram1D.shape[0]
-        
+
+        self.GuessByWindow()
+       
+        ''' 
         self.StartGuess = const + (const/2.0) * np.random.randn(self.nWalkers, self.Balrog.TransferMatrix.shape[1])
         cut = (self.StartGuess <= 1)
         while np.sum(cut) >0:
             self.StartGuess[cut] = const + (const/2.0) * np.random.randn(np.sum(cut))
             cut = (self.StartGuess <= 1)
+        '''
+
         '''
         g = np.repeat( np.reshape(1+self.Balrog.TruthHistogram1D, (1, len(self.Balrog.TruthHistogram1D))), self.nWalkers, axis=0)
         self.StartGuess = np.sqrt(g)*np.random.randn(nWalkers, self.Balrog.TransferMatrix.shape[1]) + g 
@@ -151,6 +156,21 @@ class MCMCReconstruction(object):
             self.BuildTruthHist()
 
 
+    def GuessByWindow(self, noise=0.01):
+        Measured = np.zeros( (len(self.Measured), len(self.Balrog.MeasuredColumns)) )
+        for j in range(len(self.Balrog.MeasuredColumns)):
+            Measured[:,j] = self.Measured[self.Balrog.MeasuredColumns[j]]
+        thist, edge = np.histogramdd(Measured, bins=self.Balrog.TruthBins)
+        guess = thist.flatten() / self.Balrog.Window
+
+        guess = np.reshape( np.repeat(guess, self.nWalkers), (self.nWalkers,self.Balrog.TransferMatrix.shape[1]) )
+        self.StartGuess = guess + (noise*guess) * np.random.randn(self.nWalkers, self.Balrog.TransferMatrix.shape[1])
+        cut = (self.StartGuess <= 1)
+        while np.sum(cut) > 0:
+            self.StartGuess[cut] = guess[cut] + (noise*guess) * np.random.randn(np.sum(cut))
+            cut = (self.StartGuess <= 1)
+
+
     def BuildMeasuredHist(self):
         Measured = np.zeros( (len(self.Measured), len(self.Balrog.MeasuredColumns)) )
         for j in range(len(self.Balrog.MeasuredColumns)):
@@ -176,9 +196,10 @@ class MCMCReconstruction(object):
     def ClearChain(self):
         self.Sampler.reset()
 
-    def BurnIn(self, n):
+    def BurnIn(self, n, clear=True):
         self.ChainPos, self.ChainProb, self.ChainState = self.Sampler.run_mcmc(self.StartGuess, n)
-        self.ClearChain()
+        if clear:
+            self.ClearChain()
 
     def Sample(self, n, pos=None):
         if pos==None:
@@ -273,7 +294,7 @@ class MCMCReconstruction(object):
 
 class BalrogLikelihood(object):
 
-    def __init__(self, truthcat, observedcat, truthcolumns=['mag'], truthbins=None, measuredcolumns=['mag_auto'], measuredbins=None, domatch=False, matchedon='balrog_index'):
+    def __init__(self, truthcat, observedcat, truthcolumns=['mag'], truthbins=None, measuredcolumns=['mag_auto'], measuredbins=None, domatch=False, matchedon='balrog_index', threshold=0 ):
         self.FullTruth = truthcat
         self.MatchedOn = matchedon
         if domatch:
@@ -293,8 +314,11 @@ class BalrogLikelihood(object):
    
         self.BuildTruthHist()
         self.BuildMeasuredHist()
+
         self.BuildTransferMatrix()
         self.BuildWindowFunction()
+        cut = (self.TransferMatrix * np.reshape(self.Window, (1,self.Window.shape[0])) < threshold)
+        self.TransferMatrix[cut] = 0
 
 
     def BuildTruthHist(self):
