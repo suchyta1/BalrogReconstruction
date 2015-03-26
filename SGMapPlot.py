@@ -272,6 +272,27 @@ class HPJPlotter(object):
         return ax
 
 
+def SimplePlot(version, log=False, jd=10, hp=-1):
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    plotter = HPJPlotter(version, version)
+    ax = plotter.PlotJErr(ax, 1, log=log, jd=jd, hp=hp, plotkwargs={'fmt':'o', 'color':'red', 'markersize':3})
+    ax = plotter.PlotJErr(ax, 2, log=log, jd=jd, hp=hp, plotkwargs={'fmt':'o', 'color':'blue', 'markersize':3})
+    ax = plotter.Plot(ax, log=log, curve='truth', obj='galaxy', hp=hp, jack=-1, plotkwargs={'color':'red', 'ls':'dashed'})
+    ax = plotter.Plot(ax, log=log, curve='truth', obj='star', hp=hp, jack=-1, plotkwargs={'color':'blue', 'ls':'dashed'})
+    ax = plotter.Plot(ax, log=log, curve='des', obj='galaxy', hp=hp, jack=-1, plotkwargs={'color':'red'})
+    ax = plotter.Plot(ax, log=log, curve='des', obj='star', hp=hp, jack=-1, plotkwargs={'color':'blue'})
+    return ax
+
+def SimplerPlot(version, log=False, jd=10, hp=-1):
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    plotter = HPJPlotter(version, version)
+    ax = plotter.PlotJErr(ax, 1, log=log, jd=jd, hp=hp, plotkwargs={'fmt':'o', 'color':'red', 'markersize':3})
+    ax = plotter.Plot(ax, log=log, curve='truth', obj='galaxy', hp=hp, jack=-1, plotkwargs={'color':'red', 'ls':'dashed'})
+    ax = plotter.Plot(ax, log=log, curve='des', obj='galaxy', hp=hp, jack=-1, plotkwargs={'color':'red'})
+    return ax
+
 
 if __name__=='__main__': 
     map = {#'nside': 256,

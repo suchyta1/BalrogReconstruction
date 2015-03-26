@@ -2,6 +2,7 @@
 
 import desdb
 import numpy as np
+import numpy.ma as ma
 import esutil
 import pyfits
 import healpy as hp
@@ -107,8 +108,8 @@ class MCMCReconstruction(object):
         const = float(self.Measured.size) / self.Balrog.TruthHistogram1D.shape[0]
 
         self.GuessByWindow()
-       
-        ''' 
+      
+        '''
         self.StartGuess = const + (const/2.0) * np.random.randn(self.nWalkers, self.Balrog.TransferMatrix.shape[1])
         cut = (self.StartGuess <= 1)
         while np.sum(cut) >0:
@@ -161,15 +162,18 @@ class MCMCReconstruction(object):
         for j in range(len(self.Balrog.MeasuredColumns)):
             Measured[:,j] = self.Measured[self.Balrog.MeasuredColumns[j]]
         thist, edge = np.histogramdd(Measured, bins=self.Balrog.TruthBins)
-        guess = thist.flatten() / self.Balrog.Window
+
+        guess =  thist.flatten()
+        guess[ -self.Balrog.TruthMask ] = guess[ -self.Balrog.TruthMask ] / self.Balrog.Window[ -self.Balrog.TruthMask ]
+        #guess = thist.flatten() / self.Balrog.Window
 
 
         #guess = np.reshape( np.repeat(guess, self.nWalkers), (self.nWalkers,self.Balrog.TransferMatrix.shape[1]) )
-        guess = np.repeat([guess], self.nWalkers, axis=0)
+        guess = np.repeat([guess+1], self.nWalkers, axis=0)
         self.StartGuess = guess + (noise*guess) * np.random.randn(self.nWalkers, self.Balrog.TransferMatrix.shape[1])
         cut = (self.StartGuess <= 1)
         while np.sum(cut) > 0:
-            self.StartGuess[cut] = guess[cut] + (noise*guess) * np.random.randn(np.sum(cut))
+            self.StartGuess[cut] = guess[cut] + (noise*guess[cut]) * np.random.randn(np.sum(cut))
             cut = (self.StartGuess <= 1)
 
 
@@ -358,6 +362,7 @@ class BalrogLikelihood(object):
         binindex = np.arange(1, NTruthBins, 1)
         splitat = np.searchsorted(d['BinIndex'], binindex)
         BalrogByTruthIndex = np.split(d, splitat)
+
         self.NObserved = np.zeros( len(BalrogByTruthIndex) )
 
         NObsBins = 1
@@ -387,6 +392,8 @@ class BalrogLikelihood(object):
             self.NObserved[i] = len(ThisTruth)
             hist1d = nhist.flatten()
             self.TransferMatrix[:, i] = hist1d
+
+        self.TruthMask = (self.NObserved==0)
            
 
     def BuildWindowFunction(self):
@@ -400,6 +407,7 @@ class BalrogLikelihood(object):
         self.Window = np.zeros(len(self.TruthHistogram1D))
         cut = (self.TruthHistogram1D > 0)
         self.Window[cut] = self.NObserved[cut] / self.TruthHistogram1D[cut]
+        self.Likelihood = self.TransferMatrix * np.reshape(self.Window, (1,self.Window.shape[0]))
 
 
     def PlotTransferMatrix(self, fig, ax, truthwhere=None, measuredwhere=None, plotkwargs={}):
@@ -594,7 +602,7 @@ def LogFactorial(n, thresh=20):
     return nn
 
 
-def ObjectLogThing(Truth, ReconObject, pmin=1.0e-20):
+def ObjectLogThing(Truth, ReconObject, pmin=1.0e-20, lninf=-1000):
     if np.sum(Truth <= 0) > 0:
         return -np.inf
 
@@ -608,24 +616,62 @@ def ObjectLogThing(Truth, ReconObject, pmin=1.0e-20):
     #pobs = np.zeros(ReconObject.Balrog.TransferMatrix.shape[0])
     '''
 
+    '''
     #pobs = pmin + np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
-    pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+
+    #pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+    #print np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window)
+    #print Truth
 
     if np.sum(pobs <= 0) > 0:
         return -np.inf
+
     punobs =  1.0 - np.sum(pobs)
     if np.sum(punobs <= 0) > 0:
         return -np.inf
+    '''
 
+    #pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
+    pobs = np.dot(ReconObject.Balrog.Likelihood, Truth) / np.sum(Truth)
+    punobs =  1.0 - np.sum(pobs)
     Nunobs = np.sum(Truth*(1.0-ReconObject.Balrog.Window))
     Nobs = np.sum(ReconObject.MeasuredHistogram1D)
 
+    if punobs==0:
+        lpunobs = lninf
+    else:
+        lpunobs = np.log(punobs)
+
+    '''
+    pobs = ma.array(pobs, mask=(-(pobs > 0)))
+    lpobs = ma.log(pobs).filled(lninf)
+    '''
+
+    lpobs = np.zeros(len(pobs))
+    cut = (pobs > 0)
+    lpobs[cut] = np.log(pobs[cut])
+    lpobs[-cut] = lninf
+
+    #t4 = ma.dot(np.transpose(ReconObject.MeasuredHistogram1D), lpobs)
+    t4 = np.dot(np.transpose(ReconObject.MeasuredHistogram1D), lpobs)
+    t5 = Nunobs * lpunobs
+    t1 = scipy.special.gammaln(1 + Nunobs + Nobs)
+    t2 = scipy.special.gammaln(1 + Nunobs)
+    t3 = np.sum(scipy.special.gammaln(1 + ReconObject.MeasuredHistogram1D))
+    logL = t1 - t2 - t3 + t4 + t5
+
+
+
+
+    '''
     t4 = np.dot(np.transpose(ReconObject.MeasuredHistogram1D), np.log(pobs))
     t5 = Nunobs * np.log(punobs)
     t1 = scipy.special.gammaln(1 + Nunobs + Nobs)
     t2 = scipy.special.gammaln(1 + Nunobs)
     t3 = np.sum(scipy.special.gammaln(1 + ReconObject.MeasuredHistogram1D))
     logL = t1 - t2 - t3 + t4 + t5
+    '''
+
     return logL
 
 
@@ -825,7 +871,7 @@ def Mag1D():
 def MagR2D():
     truth, observed, des_truth, des_observed, truthcolumns, measuredcolumns = GetSample(kind='suchyta')
     #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['size','mag'], truthbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)], measuredcolumns=['size_auto','mag_auto'], measuredbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)])
-    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.5)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(16,29.5, 0.5)])
+    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.55)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(16,29.5, 0.42)])
 
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)
