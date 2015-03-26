@@ -17,17 +17,24 @@ def broadcast(arr):
 def gather(arr, dtype=np.float):
     arr = MPI.COMM_WORLD.gather(arr, root=0)
     if MPI.COMM_WORLD.Get_rank()==0:
-        if arr[0].ndim==1:
+
+        n = 0
+        while n < len(arr):
+            if len(arr[n]) > 0:
+                break
+            n += 1
+
+        if arr[n].ndim==1:
             arr = itertools.chain.from_iterable(arr)
             arr = np.fromiter(arr, dtype=dtype)
-        elif arr[0].ndim==2:
-            vlen = arr[0].shape[-1]
+        elif arr[n].ndim==2:
+            vlen = arr[n].shape[-1]
             arr = itertools.chain.from_iterable(itertools.chain.from_iterable(arr))
             arr = np.fromiter(arr, dtype=dtype)
             arr = np.reshape(arr, (arr.shape[0]/vlen, vlen))
-        elif arr[0].ndim==3:
-            vlen = arr[0].shape[-1]
-            hlen = arr[0].shape[-2]
+        elif arr[n].ndim==3:
+            vlen = arr[n].shape[-1]
+            hlen = arr[n].shape[-2]
             arr = itertools.chain.from_iterable(itertools.chain.from_iterable(itertools.chain.from_iterable(arr)))
             arr = np.fromiter(arr, dtype=dtype)
             arr = np.reshape(arr, (arr.shape[0]/(vlen*hlen), hlen, vlen))

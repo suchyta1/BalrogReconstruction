@@ -323,10 +323,14 @@ def ByHealpixelAndJack(arrs, map, band, mcmc, balrogcoords=['ra','dec'], descoor
             r = np.unique(arrs[i][cut][hpfield])
             rInds = np.union1d(rInds, r)
 
-    
+        ''' 
         for i in range(len(arrs)):
             cut = -np.in1d(arrs[i][hpfield], rInds)
             arrs[i] = arrs[i][cut]
+        '''
+
+        keep = -np.in1d(uInds, rInds)
+        uInds = uInds[keep]
 
     
     for i in range(len(arrs)):
@@ -342,6 +346,9 @@ def ByHealpixelAndJack(arrs, map, band, mcmc, balrogcoords=['ra','dec'], descoor
    
 
     a = []
+    mjacks = (mcmc['jacknife'] > 1)
+    mhps = (len(uInds) > 1)
+
     for i in range(len(arrs)):
         if method=='sort':
             #arrs[i] = np.sort(arrs[i], order='pindex')
@@ -363,7 +370,8 @@ def ByHealpixelAndJack(arrs, map, band, mcmc, balrogcoords=['ra','dec'], descoor
         if (i==(len(arrs)-1)) and (not mcmc['jackdes']):
             a[i] = list( np.repeat(a[i], mcmc['jacknife'], axis=0) )
 
-        if (mcmc['jacknife'] > 1):
+
+        if mjacks:
             hps = np.unique(arrs[i][hpfield])
             for h in hps:
                 cut = (arrs[i][hpfield]==h)
@@ -371,7 +379,8 @@ def ByHealpixelAndJack(arrs, map, band, mcmc, balrogcoords=['ra','dec'], descoor
                 d[jfield] = -1
                 a[i].append(d)
 
-        if map['nside'] is not None:
+        #if map['nside'] is not None:
+        if mhps:
             js = np.unique(arrs[i][jfield])
             for j in js:
                 cut = (arrs[i][jfield]==j)
@@ -379,13 +388,14 @@ def ByHealpixelAndJack(arrs, map, band, mcmc, balrogcoords=['ra','dec'], descoor
                 d[hpfield] = -1
                 a[i].append(d)
 
-        if map['nside'] is not None:
+        if mjacks and mhps:
             d = np.copy(arrs[i])
             d[hpfield] = -1
             d[jfield] = -1
             a[i].append(d)
 
     print len(a[0])
+    print np.sum( (a[0][-1][jfield]==-1) & (a[0][-1][hpfield]==-1) )
     return a
 
 
@@ -466,17 +476,19 @@ def PCALikelihood(map, mcmc, truth, matched, PCAtype, jfield, hfield, band, dopl
 
         if (PCAtype=='jacknife' and jin!=-1) or (PCAtype=='healpix' and jin==-1):
             like = InitialLikelihood(truth[i], matched[i], mcmc['truthcolumns'], mcmc['truthbins'], mcmc['measuredcolumns'], mcmc['measuredbins'], threshold=mcmc['threshold'])
-            if (jin==-1) & (hin==-1):
-                master = np.copy(like)
+            if (jin==-1) and (hin==-1):
+                master = like
             else:
                 likes.append(like)
 
     likes = np.array(likes)
-    print likes
-    likes = mpifunctions.Gather(likes)
-    master = mpifunctions.Gather(master)
+    master = np.array(master)
+    likes, master = mpifunctions.Gather(likes, master)
+    master = mpifunctions.Broadcast(master)
     if MPI.COMM_WORLD.Get_rank()==0:
-        evectors, evalues = PCA.likelihoodPCA(likelihood=likes, likilhood_master=master, doplot=doplot, band=band, extent=None, residual=mcmc['residual'])
+        print len(master); sys.stdout.flush()
+        likes = np.transpose(likes, (1,2,0))
+        evectors, evalues = PCA.likelihoodPCA(likelihood=likes, likelihood_master=master, doplot=doplot, band=band, extent=None, residual=mcmc['residual'])
     else:
         evectors = None
         evalues = None
@@ -505,12 +517,9 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
     #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=truthcolumns, truthbins=truthbins, measuredcolumns=measuredcolumns, measuredbins=measuredbins)
     BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=truthcolumns, truthbins=truthbins, measuredcolumns=measuredcolumns, measuredbins=measuredbins, threshold=threshold)
     if evectors is not None:
-        w = np.reshape(BalrogObject.Window, (1,BalrogObject.Window.shape[0]))
-        like = BalrogObject.TransferMatrix * w
+        like = BalrogObject.Likelihood
         LikePCA, MasterPCA = PCA.doLikelihoodPCAfit(pcaComp=evectors, master=master, Lcut=Lcut, eigenval=evalues, likelihood=like, n_component=n_component, residual=residual)
-        cut = (w > 0)
-        BalrogObject.TransferMatrix[cut] = LikePCA[cut] / w[cut]
-        BalrogObject.TransferMatrix[-cut] = 0
+        BalrogObject.Likelihood = LikePCA
 
     fig = plt.figure()
     ax = fig.add_subplot(1,1, 1)
