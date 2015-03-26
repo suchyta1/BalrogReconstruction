@@ -471,6 +471,8 @@ def PCALikelihood(map, mcmc, truth, matched, PCAtype, jfield, hfield, band, dopl
             else:
                 likes.append(like)
 
+    likes = np.array(likes)
+    print likes
     likes = mpifunctions.Gather(likes)
     master = mpifunctions.Gather(master)
     if MPI.COMM_WORLD.Get_rank()==0:
@@ -483,8 +485,9 @@ def PCALikelihood(map, mcmc, truth, matched, PCAtype, jfield, hfield, band, dopl
 
 
 def InitialLikelihood(truth, matched, truthcolumns, truthbins, measuredcolumns, measuredbins, threshold=0):
-    BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=truthcolumns, truthbins=truthbins, measuredcolumns=measuredcolumns, measuredbins=measuredbins, threshold=threshold, n_component=4)
-    return BalrogObject.TransferMatrix * np.reshape(BalrogObject.Window, (1,BalrogObject.Window.shape[0]))
+    BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=truthcolumns, truthbins=truthbins, measuredcolumns=measuredcolumns, measuredbins=measuredbins, threshold=threshold)
+    #return BalrogObject.TransferMatrix * np.reshape(BalrogObject.Window, (1,BalrogObject.Window.shape[0]))
+    return BalrogObject.Likelihood
 
 
 def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, measuredbins, nWalkers=1000, burnin=5000, steps=1000, out='SGPlots', hpfield='hpIndex', jfield='jacknife', threshold=0, evectors=None, evalues=None, master=None, Lcut=0, residual=False, n_component=4, sg=True, **other):
@@ -556,8 +559,6 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         where = [0, None]
         galaxy_balrog_truth_center, galaxy_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
         galaxy_recon_truth_center, galaxy_recon_truth, galaxy_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
-
-        #where = None
         galaxy_balrog_obs_center, galaxy_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
         galaxy_recon_obs_center, galaxy_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
         galaxy_window = BalrogObject.Window[0:wmid]
@@ -565,21 +566,20 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         where = [1, None]
         star_balrog_truth_center, star_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
         star_recon_truth_center, star_recon_truth, star_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
-
-        #where = None
         star_balrog_obs_center, star_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
         star_recon_obs_center, star_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
         star_window = BalrogObject.Window[wmid:wend]
 
         where = [2, None]
-        #where = None
         neither_balrog_obs_center, neither_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
+        neither_recon_obs_center, neither_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
 
         #print len(galaxy_window), len(star_window), len(galaxy_balrog_truth)
-        #balrog_obs = [galaxy_balrog_obs, star_balrog_obs, neither_balrog_obs, galaxy_balrog_obs_center]
+        #balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_balrog_truth_center]
+
+        balrog_obs = [galaxy_balrog_obs, star_balrog_obs, neither_balrog_obs, galaxy_balrog_obs_center]
         balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_window, star_window, galaxy_balrog_truth_center]
-        balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_balrog_truth_center]
-        recon_obs = [galaxy_recon_obs, star_recon_obs, galaxy_recon_obs_center]
+        recon_obs = [galaxy_recon_obs, star_recon_obs, neither_recon_obs, galaxy_recon_obs_center]
         recon_truth = [galaxy_recon_truth, star_recon_truth, galaxy_recon_trutherr, star_recon_trutherr, galaxy_recon_truth_center]
 
     else:
@@ -862,7 +862,7 @@ if __name__=='__main__':
                   'measuredbins': mb,
 
                   'threshold': 0,
-                  'PCAon': None,
+                  'PCAon': 'healpix',
                   'Lcut': 0,
                   'n_component': 4,
                   'residual': False,
@@ -872,12 +872,12 @@ if __name__=='__main__':
                   'nWalkers': 1000,
 
                   'jackfield': 'jacknife',
-                  'jacknife': 9,
+                  'jacknife': 1,
                   'jackdes': True
                  }
 
-    MapConfig = {#'nside': 64,
-                 'nside': None,
+    MapConfig = {'nside': 64,
+                 #'nside': None,
                  'hpfield': 'hpIndex',
 
                  'version': '%s-%s-mbins=%.1f-sg=%s-Lcut=%s' %(version,band,size,str(sg), MCMCconfig['Lcut']),

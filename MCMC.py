@@ -632,9 +632,12 @@ def ObjectLogThing(Truth, ReconObject, pmin=1.0e-20, lninf=-1000):
     '''
 
     #pobs = np.dot(ReconObject.Balrog.TransferMatrix, Truth*ReconObject.Balrog.Window) / np.sum(Truth)
-    pobs = np.dot(ReconObject.Balrog.Likelihood, Truth) / np.sum(Truth)
+    Tobs = np.dot(ReconObject.Balrog.Likelihood, Truth)
+    pobs = Tobs / np.sum(Truth)
     punobs =  1.0 - np.sum(pobs)
-    Nunobs = np.sum(Truth*(1.0-ReconObject.Balrog.Window))
+
+    Nunobs = np.sum(Truth) - np.sum(np.dot(ReconObject.Balrog.Likelihood, Truth))
+    #Nunobs = np.sum(Truth*(1.0-ReconObject.Balrog.Window))
     Nobs = np.sum(ReconObject.MeasuredHistogram1D)
 
     if punobs==0:
