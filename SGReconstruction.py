@@ -571,6 +571,7 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         galaxy_balrog_obs_center, galaxy_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
         galaxy_recon_obs_center, galaxy_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
         galaxy_window = BalrogObject.Window[0:wmid]
+        galaxy_nobs = np.sum(BalrogObject.Likelihood[:, 0:wmid], axis=0)
 
         where = [1, None]
         star_balrog_truth_center, star_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
@@ -578,6 +579,7 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         star_balrog_obs_center, star_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
         star_recon_obs_center, star_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
         star_window = BalrogObject.Window[wmid:wend]
+        star_nobs = np.sum(BalrogObject.Likelihood[:, wmid:wend], axis=0)
 
         where = [2, None]
         neither_balrog_obs_center, neither_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
@@ -587,7 +589,7 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         #balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_balrog_truth_center]
 
         balrog_obs = [galaxy_balrog_obs, star_balrog_obs, neither_balrog_obs, galaxy_balrog_obs_center]
-        balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_window, star_window, galaxy_balrog_truth_center]
+        balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_window, star_window, galaxy_nobs, star_nobs, galaxy_balrog_truth_center]
         recon_obs = [galaxy_recon_obs, star_recon_obs, neither_recon_obs, galaxy_recon_obs_center]
         recon_truth = [galaxy_recon_truth, star_recon_truth, galaxy_recon_trutherr, star_recon_trutherr, galaxy_recon_truth_center]
 
@@ -597,9 +599,10 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         galaxy_balrog_truth_center, galaxy_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
         galaxy_recon_obs_center, galaxy_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
         galaxy_recon_truth_center, galaxy_recon_truth, galaxy_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
+        nobs = np.sum(BalrogObject.Likelihood, axis=0)
 
         balrog_obs = [galaxy_balrog_obs, galaxy_balrog_obs_center]
-        balrog_truth = [galaxy_balrog_truth, BalrogObject.Window, galaxy_balrog_truth_center]
+        balrog_truth = [galaxy_balrog_truth, BalrogObject.Window, nobs, galaxy_balrog_truth_center]
         recon_obs = [galaxy_recon_obs, galaxy_recon_obs_center]
         recon_truth = [galaxy_recon_truth, galaxy_recon_trutherr, galaxy_recon_truth_center]
 
@@ -873,7 +876,7 @@ if __name__=='__main__':
                   'threshold': 0,
                   'PCAon': 'healpix',
                   'Lcut': 0,
-                  'n_component': 4,
+                  'n_component': 10,
                   'residual': False,
 
                   'burnin': 3000,

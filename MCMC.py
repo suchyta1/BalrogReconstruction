@@ -221,8 +221,11 @@ class MCMCReconstruction(object):
 
         if self.samplelog:
             subchain = np.power(10.0, subchain)
+
         avg = np.average(subchain, axis=-1)
         std = np.std(subchain, axis=-1)
+
+        #ind = np.argmax(self.Sampler.lnprobability
 
         '''
         cut = (self.Balrog.TruthHistogram1D == 0)

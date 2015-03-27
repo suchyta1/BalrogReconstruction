@@ -16,6 +16,13 @@ def RaDec2Healpix(ra, dec, nside, nest=False):
     return hpInd
 
 
+def Healpix2RaDec(pix, nside, nest=False):
+    theta, phi = hp.pix2ang(nside, pix, nest=nest)
+    ra = np.degrees(phi)
+    dec = 90.0 - np.degrees(theta)
+    return ra, dec
+
+
 def SortOnHP(arr, rcoord, dcoord, nside, nest, field='hpIndex'):
     hpInd = RaDec2Healpix(arr[rcoord], arr[dcoord], nside, nest=nest)
     arr = recfunctions.append_fields(arr, field, hpInd)
