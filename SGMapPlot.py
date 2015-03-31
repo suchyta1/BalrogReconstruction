@@ -8,19 +8,22 @@ import pyfits
 import healpy as hp
 
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import LogNorm, Normalize
-from matplotlib.backends.backend_agg import FigureCanvasAgg as Canvas
+#from matplotlib.backends.backend_agg import FigureCanvasAgg as Canvas
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg as Canvas
 
 import mpifunctions
 import DBfunctions
 import MCMC
 import healpyfunctions
+import ConfigDict
+import PCA
 
 
-def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1):
+def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file='maps.pdf', sg=True):
     ReconHDUs = pyfits.open(pobj.reconfile)
     RawHDUs = pyfits.open(pobj.datafile)
 
@@ -30,45 +33,89 @@ def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1):
     end = np.amax(cut)
     
     ReconCat = ReconHDUs[-1].data
-    cut = (ReconCat[pobj.hpfield] > -1) & (ReconCat[pobj.jfield] == -1)
+    cut = (ReconCat[pobj.hpfield] >= -1) & (ReconCat[pobj.jfield] == -1)
     hps = ReconCat[pobj.hpfield][cut]
     ra, dec = healpyfunctions.Healpix2RaDec(hps, pobj.nside, nest=pobj.nest)
     area = ReconCat['numTruth'][cut] * pobj.pixpergal * np.power(pobj.pscale/60.0, 2)
     norm = 1.0 / area
 
     ReconGalSample = np.sum(ReconHDUs[1].data[cut][:, start:end], axis=1) * norm
-    ReconStarSample = np.sum(ReconHDUs[2].data[cut][:, start:end], axis=1) * norm
     RawGalSample = np.sum(RawHDUs[1].data[cut][:, start:end], axis=1) * norm
-    RawStarSample = np.sum(RawHDUs[2].data[cut][:, start:end], axis=1) * norm
-    
+    if sg:
+        ReconStarSample = np.sum(ReconHDUs[2].data[cut][:, start:end], axis=1) * norm
+        RawStarSample = np.sum(RawHDUs[2].data[cut][:, start:end], axis=1) * norm
 
-    fig, axarr = plt.subplots(2, 3, figsize=(16,10))
-    axarr[1,2].axis('off')
-    ReconGalMap = MakeMap(ReconGalSample, hps, pobj.nside, axarr[0,0], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Reconstructed Galaxy Map')
-    RawGalMap = MakeMap(RawGalSample, hps, pobj.nside, axarr[0,1], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Raw Galaxy Map')
-    ReconStarMap = MakeMap(ReconStarSample, hps, pobj.nside, axarr[1,0], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Reconstructed Star Map')
-    RawStarMap = MakeMap(RawStarSample, hps, pobj.nside, axarr[1,1], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Raw Star Map')
-
+  
     ys = [0,0, 1,1]
     xs = [0,1, 0,1]
-    pp = PdfPages('maps.pdf')
+    pp = PdfPages(file)
+
+
+    likes = pyfits.open(pobj.reconfile)[-3].data[cut]
+    center = pyfits.open(pobj.truthfile)[-2].data
+    if not sg:
+        GalWindow = pyfits.open(pobj.truthfile)[-3].data[cut]
+        r = len(ys)-2
+    else:
+        GalWindow = pyfits.open(pobj.truthfile)[-4].data[cut]
+        StarWindow = pyfits.open(pobj.truthfile)[-3].data[cut]
+        r = len(ys)
+
+    fig, axarr = plt.subplots(3, 3, figsize=(16,10))
+    #axarr[1,2].axis('off')
+
+    c = (hps > -1)
+    ReconGalMap = MakeMap(ReconGalSample, hps[c], pobj.nside, axarr[0,0], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Reconstructed Galaxy Map')
+    RawGalMap = MakeMap(RawGalSample, hps[c], pobj.nside, axarr[0,1], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Raw Galaxy Map')
+    if sg:
+        ReconStarMap = MakeMap(ReconStarSample, hps[c], pobj.nside, axarr[1,0], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Reconstructed Star Map')
+        RawStarMap = MakeMap(RawStarSample, hps[c], pobj.nside, axarr[1,1], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Raw Star Map')
+
     for i in range(len(hps)):
         canvas = Canvas(fig)
+        #canvas = FigureCanvas(fig)
 
-        for j in range(len(ys)):
-            axarr[ys[j], xs[j]].plot( [ra[i]], [dec[i]], color='black', marker='x', markersize=10, linestyle='None' )
+        ax = axarr[1,2]
+        ax.clear()
+        ax.set_title('%i'%hps[i])
+        ax.plot(center, GalWindow[i], color='red', linestyle='-', marker='o')
+        if sg:
+            ax.plot(center, StarWindow[i], color='blue', linestyle='-', marker='o')
+        ax.set_yscale('log')
+        ax.set_ylim( [1e-5, 1] )
+
+        if hps[i]!=-1:
+            for j in range(r):
+                axarr[ys[j], xs[j]].plot( [ra[i]], [dec[i]], color='black', marker='x', markersize=10, linestyle='None' )
 
         ax = axarr[0,2]
         ax.clear()
-        ax = pobj.SimplePlot(hp=hps[i], ax=ax, log=True)
-        ax.set_xlim( [17.5, 25.5] )
-        ax.set_ylim( [-4, 4] )
+        #ax = pobj.SimplePlot(hp=hps[i], ax=ax, log=True)
+        ax = pobj.SimplePlot(hp=hps[i], ax=ax, log=False)
+        ax.set_yscale('log')
+        ax.set_xlim( [17.5, 27.5] )
+        ax.set_ylim( [1e-3, 1e3] )
         axarr[0,2] = ax
+       
+
+        ax = axarr[2,2]
+        ax.clear()
+        if i==0:
+            cax = None
+        else:
+            cax = fig.axes[-1]
+            cax.clear()
+        ax = PCA.LikelihoodArcsinh(likes[i], fig, ax, plotscale=1.0e-3, nticks=5, cax=cax)
+        axarr[2,2] = ax
+
+        
         plt.tight_layout()
         pp.savefig(fig, bbox_inches='tight')
+        
+        if hps[i]!=-1:
+            for j in range(r):
+                axarr[ys[j],xs[j]].lines.pop(0)
 
-        for j in range(len(ys)):
-            axarr[ys[j],xs[j]].lines.pop(0)
 
     pp.savefig(fig)
     pp.close()
@@ -247,7 +294,7 @@ def SetKwargs(plotkwargs, kwargs1, kwargs2):
 
 class HPJPlotter(object):
 
-    def __init__(self, dir, version=None, hpfield='hpIndex', jfield='jacknife', pixpergal=1.0e3, pscale=0.27, tiletot=1e5, nside=64, nest=False):
+    def __init__(self, dir, version=None, hpfield='hpIndex', jfield='jacknife', pixpergal=1.0e3, pscale=0.27, tiletot=1e5, nside=64, nest=False, sg=True):
         self.dir = dir
         if version is None:
             version = os.path.basename(dir)
@@ -264,6 +311,7 @@ class HPJPlotter(object):
         self.tiletot = tiletot
         self.nside = nside
         self.nest = nest
+        self.sg = sg
 
         self.healpixels = np.unique( pyfits.open(self.reconfile)[-1].data[self.hpfield] )
         self.jacks = np.unique( pyfits.open(self.reconfile)[-1].data[self.jfield] )
@@ -312,16 +360,16 @@ class HPJPlotter(object):
             ext = 1
             if curve=='recon':
                 errext = 3
+                if not self.sg:
+                    errext = 2
             else:
                 errext = None
-            next = -4
         elif obj=='star':
             ext = 2
             if curve=='recon':
                 errext = 4
             else:
                 errext = None
-            next = -3
 
         if curve=='recon':
             file = self.reconfile
@@ -336,10 +384,10 @@ class HPJPlotter(object):
             file = self.truthfile
             kind = 'plot'
 
-        return self.PlotRecon(ax, file, ext, hp, jack, errext=errext, kind=kind, plotkwargs=plotkwargs, log=log, next=next) 
+        return self.PlotRecon(ax, file, ext, hp, jack, errext=errext, kind=kind, plotkwargs=plotkwargs, log=log, next=ext, ncut=ncut) 
 
 
-    def PlotRecon(self, ax, file, ext, hp, jack, errext=None, kind='plot', coordsext=-2, hpext=-1, plotkwargs={}, normed=True, log=False, tmask=None, next=None, ncut=-1):
+    def PlotRecon(self, ax, file, ext, hp, jack, errext=None, kind='plot', coordsext=-2, hpext=-1, plotkwargs={}, normed=True, log=False, next=None, ncut=-1):
         hdus = pyfits.open(file)
         hpcut = (hdus[hpext].data[self.hpfield] == hp)
         jcut = (hdus[hpext].data[self.jfield] == jack)
@@ -361,15 +409,19 @@ class HPJPlotter(object):
 
         coords = hdus[coordsext].data
         vals = hdus[ext].data[line, :] * norm[line]
-        if log:
-            vals = np.log10(vals)
-
 
         if errext!=None:
             err = hdus[errext].data[line, :] * norm[line]
 
-        if tmask is not None:
+        if log:
+            if errext!=None:
+                err = err / (vals * np.log(10))
+            vals = np.log10(vals)
+
+
+        if ncut > 0:
             nobs = pyfits.open(self.truthfile)[next].data[line]
+            print nobs
             cut = (nobs > ncut)
             coords = coords[cut]
             vals = vals[cut]
@@ -396,13 +448,17 @@ class HPJPlotter(object):
         '''
 
         ax = self.Plot(ax, log=log, curve='recon', obj='galaxy', hp=hp, jack=-1, ncut=ncut, plotkwargs={'fmt':'o', 'color':'red', 'markersize':3})
-        ax = self.Plot(ax, log=log, curve='recon', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'fmt':'o', 'color':'blue', 'markersize':3})
         ax = self.Plot(ax, log=log, curve='truth', obj='galaxy', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'red', 'ls':'dashed'})
-        ax = self.Plot(ax, log=log, curve='truth', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'blue', 'ls':'dashed'})
         ax = self.Plot(ax, log=log, curve='des', obj='galaxy', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'red'})
-        ax = self.Plot(ax, log=log, curve='des', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'blue'})
         ax = self.Plot(ax, log=log, curve='obs', obj='galaxy', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'red', 'ls':'-.'})
-        ax = self.Plot(ax, log=log, curve='obs', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'blue', 'ls':'-.'})
+        
+        if self.sg:
+            ax = self.Plot(ax, log=log, curve='recon', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'fmt':'o', 'color':'blue', 'markersize':3})
+            ax = self.Plot(ax, log=log, curve='truth', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'blue', 'ls':'dashed'})
+            ax = self.Plot(ax, log=log, curve='des', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'blue'})
+            ax = self.Plot(ax, log=log, curve='obs', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'blue', 'ls':'-.'})
+
+
         return ax
 
 
@@ -485,5 +541,21 @@ if __name__=='__main__':
     SGRecon2Map(rfile, map['version'], magmin=map['summin'], magmax=map['summax'], nside=map['nside'], nest=map['nest'], colorkwargs=colorkwargs)
     '''
 
-    plotter = HPJPlotter('sva1v2-i-mbins=0.5-sg=True-Lcut=0')
-    MapsFromReconImages(plotter, magmin=22.5, magmax=24.5, cmin=-1, cmax=1)
+    band = 'i'
+    config = ConfigDict.BuildDict(band=band)
+    sg = config[1]['sg']
+    dir = config[1]['hpjdir']
+    version = config[2]['version']
+    table = config[0]['table']
+    if table.find('sva1v5')!=-1:
+        ppg = 1.0e3
+    else:
+        ppg = 1.0e5
+    plotter = HPJPlotter(dir, version=version, pixpergal=ppg, sg=sg)
+    out = os.path.join(dir, 'maps.pdf')
+    MapsFromReconImages(plotter, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file=out, sg=sg)
+
+    '''
+    plotter = HPJPlotter('sva1v5-i-mbins=0.5-sg=False-Lcut=0-ocut', pixpergal=1.0e3)
+    MapsFromReconImages(plotter, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file='v5maps-i.pdf')
+    '''

@@ -164,9 +164,16 @@ class MCMCReconstruction(object):
         thist, edge = np.histogramdd(Measured, bins=self.Balrog.TruthBins)
 
         guess =  thist.flatten()
-        guess[ -self.Balrog.TruthMask ] = guess[ -self.Balrog.TruthMask ] / self.Balrog.Window[ -self.Balrog.TruthMask ]
+        # guess[ -self.Balrog.TruthMask ] = guess[ -self.Balrog.TruthMask ] / self.Balrog.Window[ -self.Balrog.TruthMask ]
         #guess = thist.flatten() / self.Balrog.Window
+        
 
+        w = np.sum(self.Balrog.Likelihood, axis=0)
+        cut = (w > 0)
+        #guess[cut] = 10 * guess[cut] / w[cut]
+        guess[cut] = guess[cut] / w[cut]
+
+        #print self.Balrog.Window, w
 
         #guess = np.reshape( np.repeat(guess, self.nWalkers), (self.nWalkers,self.Balrog.TransferMatrix.shape[1]) )
         guess = np.repeat([guess+1], self.nWalkers, axis=0)
@@ -315,11 +322,16 @@ class BalrogLikelihood(object):
         self.TruthBins = truthbins
         if self.TruthBins is None:
             self.TruthBins = AutoBin(self.FullTruth, self.TruthColumns)
+        for i in range(len(self.TruthBins)):
+            self.TruthBins[i] = np.array(self.TruthBins[i])
+
 
         self.MeasuredColumns = measuredcolumns
         self.MeasuredBins = measuredbins
         if self.MeasuredBins is None:
             self.MeasuredBins = AutoBin(self.Matched, self.MeasuredColumns)
+        for i in range(len(self.MeasuredBins)):
+            self.MeasuredBins[i] = np.array(self.MeasuredBins[i])
    
         self.BuildTruthHist()
         self.BuildMeasuredHist()
@@ -407,6 +419,7 @@ class BalrogLikelihood(object):
         TruthHist, edge = np.histogramdd(CanHist, bins=self.TruthBins)
         self.TruthHist = TruthHist.flatten()
         '''
+
         self.Window = np.zeros(len(self.TruthHistogram1D))
         cut = (self.TruthHistogram1D > 0)
         self.Window[cut] = self.NObserved[cut] / self.TruthHistogram1D[cut]
@@ -417,6 +430,10 @@ class BalrogLikelihood(object):
         #im = ax.imshow(BalrogObject.TransferMatrix, origin='lower', extent=[BalrogObject.TruthBins[0][0],BalrogObject.TruthBins[0][-1], BalrogObject.MeasuredBins[0][0],BalrogObject.MeasuredBins[0][-1]], interpolation='nearest')
         #plt.plot( [BalrogObject.TruthBins[0][0],BalrogObject.TruthBins[0][-1]],[BalrogObject.TruthBins[0][0],BalrogObject.TruthBins[0][-1]], color='black' )
         cax = ax.imshow(self.TransferMatrix, origin='lower', interpolation='nearest', **plotkwargs)
+        cbar = fig.colorbar(cax)
+
+    def PlotLikelihood(self, fig, ax, truthwhere=None, measuredwhere=None, plotkwargs={}):
+        cax = ax.imshow(self.Likelihood, origin='lower', interpolation='nearest', **plotkwargs)
         cbar = fig.colorbar(cax)
 
 
@@ -877,7 +894,8 @@ def Mag1D():
 def MagR2D():
     truth, observed, des_truth, des_observed, truthcolumns, measuredcolumns = GetSample(kind='suchyta')
     #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['size','mag'], truthbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)], measuredcolumns=['size_auto','mag_auto'], measuredbins=[np.arange(0,4, 0.5),np.arange(16,28, 0.75)])
-    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.55)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(16,29.5, 0.42)])
+    BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.5)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(16,29.5, 0.5)])
+    #BalrogObject = BalrogLikelihood(truth, observed, truthcolumns=['type','mag'], truthbins=[np.arange(-0.5,2.0,1),np.arange(16,28.5, 0.5)], measuredcolumns=['type_auto','mag_auto'], measuredbins=[np.arange(-0.5,2.0,1),np.arange(16,27, 0.5)])
 
     fig = plt.figure(1)
     ax = fig.add_subplot(1,1, 1)

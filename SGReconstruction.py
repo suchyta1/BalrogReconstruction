@@ -19,6 +19,8 @@ import DBfunctions
 import MCMC
 import healpyfunctions
 import PCA
+import ConfigDict
+import SGMapPlot
 
 
 
@@ -177,7 +179,6 @@ def GatherImages(images):
     for i in range(len(images)):
         images[i] = np.array(images[i])
         images[i] = mpifunctions.Gather(images[i])
-
     return images
 
 
@@ -423,7 +424,7 @@ def DivideWork(truth, matched, nosim, des, band, map, mcmc, balrogcoords=['ra','
     return truth, matched, nosim, des
 
 
-def SGClassify(truth, matched, nosim, des):
+def SGClassify(truth, matched, nosim, des, band):
     if MPI.COMM_WORLD.Get_rank()==0:
         print len(truth), len(nosim), len(matched), len(des)
         matched = Modestify(matched, byband=band)
@@ -434,7 +435,7 @@ def SGClassify(truth, matched, nosim, des):
 
 def DoSGMcmc(truth, matched, nosim, des, mcmc, band, map):
     size = len(truth)
-    images = [ [], [], [], [] ]
+    images = [ [], [], [], [], [] ]
     hpIndex = np.empty(size)
     jIndex = np.empty(size)
     sizes = np.empty(size)
@@ -454,15 +455,17 @@ def DoSGMcmc(truth, matched, nosim, des, mcmc, band, map):
     for i in range(size):
         if len(truth) > 0:
             #o, t, d, r, h, j, s, a = SGR2(truth[i], matched[i], des[i], band, mcmc['truthcolumns'], mcmc['truthbins'], mcmc['measuredcolumns'], mcmc['measuredbins'], nWalkers=mcmc['nWalkers'], burnin=mcmc['burnin'], steps=mcmc['steps'], out=mcmc['out'], hpfield=hpfield, jfield=jfield, threshold=mcmc['threshold'])
-            o, t, d, r, h, j, s, a = SGR2(truth[i], matched[i], des[i], band, hpfield=hpfield, evectors=evectors, evalues=evalues, master=master, **mcmc)
+            o, t, d, r, h, j, s, a, l = SGR2(truth[i], matched[i], des[i], band, hpfield=hpfield, evectors=evectors, evalues=evalues, master=master, **mcmc)
             images[0].append(o)
             images[1].append(t)
             images[2].append(d)
             images[3].append(r)
+            images[4].append(l)
             hpIndex[i] = h
             jIndex[i] = j
             sizes[i] = s
             acceptance[i] = a
+
     return images, hpIndex, jIndex, sizes, acceptance
 
 
@@ -488,7 +491,8 @@ def PCALikelihood(map, mcmc, truth, matched, PCAtype, jfield, hfield, band, dopl
     if MPI.COMM_WORLD.Get_rank()==0:
         print len(master); sys.stdout.flush()
         likes = np.transpose(likes, (1,2,0))
-        evectors, evalues = PCA.likelihoodPCA(likelihood=likes, likelihood_master=master, doplot=doplot, band=band, extent=None, residual=mcmc['residual'])
+        outdir = mcmc['hpjdir']
+        evectors, evalues = PCA.likelihoodPCA(likelihood=likes, likelihood_master=master, doplot=doplot, band=band, extent=None, residual=mcmc['residual'], outdir=outdir)
     else:
         evectors = None
         evalues = None
@@ -509,33 +513,36 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
     jindex = truth[jfield][0]
 
     tmfile = os.path.join(out, 'TransferMatrix-%s-%i-%i.png' %(band,index,jindex))
+    likefile = os.path.join(out, 'LikelihoodMatrix-%s-%i-%i.png' %(band,index,jindex))
     reconfile = os.path.join(out, 'ReconstructedHistogram-%s-%i-%i.png' %(band,index,jindex))
     chainfile = os.path.join(out, 'Chains-%s-%i-%i.png' %(band,index,jindex))
     burnfile = os.path.join(out, 'Burnin-%s-%i-%i.png' %(band,index,jindex))
 
 
-    #BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=truthcolumns, truthbins=truthbins, measuredcolumns=measuredcolumns, measuredbins=measuredbins)
     BalrogObject = MCMC.BalrogLikelihood(truth, matched, truthcolumns=truthcolumns, truthbins=truthbins, measuredcolumns=measuredcolumns, measuredbins=measuredbins, threshold=threshold)
     if evectors is not None:
         like = BalrogObject.Likelihood
         LikePCA, MasterPCA = PCA.doLikelihoodPCAfit(pcaComp=evectors, master=master, Lcut=Lcut, eigenval=evalues, likelihood=like, n_component=n_component, residual=residual)
         BalrogObject.Likelihood = LikePCA
 
+    '''
     fig = plt.figure()
     ax = fig.add_subplot(1,1, 1)
     BalrogObject.PlotTransferMatrix(fig, ax)
     plt.savefig(tmfile)
+    '''
+
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    ax = PCA.LikelihoodArcsinh(BalrogObject.Likelihood, fig, ax, plotscale=1.0e-3, nticks=5)
+    plt.savefig(likefile, bbox_inches='tight')
 
     #ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
     #ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogL, truth=truth, nWalkers=nWalkers, reg=1.0e-10, samplelog=True)
     ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogThing, truth=truth, nWalkers=nWalkers, reg=1.0e-10)
-    #ReconObject = MCMC.MCMCReconstruction(BalrogObject, des, MCMC.ObjectLogThing, truth=truth, nWalkers=nWalkers, reg=1.0e-10, samplelog=True)
     ReconObject.BurnIn(burnin, clear=False)
 
     c = len(truthbins[-1]) - 2
     chains = [c-4, c-3, c-2, c-1, c]
-    
-    #chains = [1, 10, -2]
     fig = plt.figure(figsize=(16,6))
     for i in range(len(chains)):
         ax = fig.add_subplot(1,len(chains), i+1)
@@ -544,13 +551,11 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
     plt.savefig(burnfile)
     plt.close(fig)
 
+
     ReconObject.ClearChain()
-
-
     ReconObject.Sample(steps)
     print index, jindex, np.average(ReconObject.Sampler.acceptance_fraction)
     acceptance = np.average(ReconObject.Sampler.acceptance_fraction)
-
 
 
     fig = plt.figure(figsize=(16,6))
@@ -571,6 +576,7 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         galaxy_balrog_obs_center, galaxy_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
         galaxy_recon_obs_center, galaxy_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
         galaxy_window = BalrogObject.Window[0:wmid]
+        galaxy_Nobs = BalrogObject.NObserved[0:wmid]
         galaxy_nobs = np.sum(BalrogObject.Likelihood[:, 0:wmid], axis=0)
 
         where = [1, None]
@@ -579,6 +585,7 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         star_balrog_obs_center, star_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
         star_recon_obs_center, star_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
         star_window = BalrogObject.Window[wmid:wend]
+        star_Nobs = BalrogObject.NObserved[wmid:wend]
         star_nobs = np.sum(BalrogObject.Likelihood[:, wmid:wend], axis=0)
 
         where = [2, None]
@@ -589,7 +596,8 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         #balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_balrog_truth_center]
 
         balrog_obs = [galaxy_balrog_obs, star_balrog_obs, neither_balrog_obs, galaxy_balrog_obs_center]
-        balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_window, star_window, galaxy_nobs, star_nobs, galaxy_balrog_truth_center]
+        #balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_window, star_window, galaxy_nobs, star_nobs, galaxy_balrog_truth_center]
+        balrog_truth = [galaxy_balrog_truth, star_balrog_truth, galaxy_Nobs, star_Nobs, galaxy_nobs, star_nobs, galaxy_balrog_truth_center]
         recon_obs = [galaxy_recon_obs, star_recon_obs, neither_recon_obs, galaxy_recon_obs_center]
         recon_truth = [galaxy_recon_truth, star_recon_truth, galaxy_recon_trutherr, star_recon_trutherr, galaxy_recon_truth_center]
 
@@ -599,14 +607,16 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         galaxy_balrog_truth_center, galaxy_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
         galaxy_recon_obs_center, galaxy_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
         galaxy_recon_truth_center, galaxy_recon_truth, galaxy_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
+        Nobs = BalrogObject.NObserved
         nobs = np.sum(BalrogObject.Likelihood, axis=0)
 
         balrog_obs = [galaxy_balrog_obs, galaxy_balrog_obs_center]
-        balrog_truth = [galaxy_balrog_truth, BalrogObject.Window, nobs, galaxy_balrog_truth_center]
+        #balrog_truth = [galaxy_balrog_truth, BalrogObject.Window, nobs, galaxy_balrog_truth_center]
+        balrog_truth = [galaxy_balrog_truth, Nobs, nobs, galaxy_balrog_truth_center]
         recon_obs = [galaxy_recon_obs, galaxy_recon_obs_center]
         recon_truth = [galaxy_recon_truth, galaxy_recon_trutherr, galaxy_recon_truth_center]
 
-    return balrog_obs, balrog_truth, recon_obs, recon_truth, index, jindex, len(truth), acceptance
+    return balrog_obs, balrog_truth, recon_obs, recon_truth, index, jindex, len(truth), acceptance, BalrogObject.Likelihood
 
 
 def GatherWork(images, hpIndex, jIndex, sizes, acceptance):
@@ -616,16 +626,29 @@ def GatherWork(images, hpIndex, jIndex, sizes, acceptance):
 
 
 def SaveWork(images, hpIndex, jIndex, sizes, acceptance, map, mcmc):
+    '''
     names = [os.path.join(map['version'], 'SG-Balrog-Observed-%s.fits' %(map['version'])),
              os.path.join(map['version'], 'SG-Balrog-Truth-%s.fits' %(map['version'])),
              os.path.join(map['version'], 'SG-Data-Observed-%s.fits' %(map['version'])),
              os.path.join(map['version'], 'SG-Data-Reconstructed-%s.fits' %(map['version']))]
+    '''
+    names = [os.path.join(mcmc['hpjdir'], 'SG-Balrog-Observed-%s.fits' %(map['version'])),
+             os.path.join(mcmc['hpjdir'], 'SG-Balrog-Truth-%s.fits' %(map['version'])),
+             os.path.join(mcmc['hpjdir'], 'SG-Data-Observed-%s.fits' %(map['version'])),
+             os.path.join(mcmc['hpjdir'], 'SG-Data-Reconstructed-%s.fits' %(map['version']))]
+
     if MPI.COMM_WORLD.Get_rank()==0:
-        for i in range(len(images)):
+        for i in range(len(images)-1):
             hdus = [pyfits.PrimaryHDU()]
             for j in range(images[i].shape[1]-1):
                 hdus.append( pyfits.ImageHDU(images[i][:,j,:]) )
+
             hdus.append( pyfits.ImageHDU(images[i][0, -1, :]) )
+
+            if i==(len(images)-2):
+                hdu = pyfits.ImageHDU(images[i+1])
+                hdus.insert(-1, hdu)
+            
 
             tab = np.zeros( images[i].shape[0], dtype=[(map['hpfield'],np.int64), (mcmc['jackfield'],np.int64), ('numTruth',np.int64), ('acceptance',np.float64)] )
             tab[map['hpfield']] = np.int64(hpIndex)
@@ -703,7 +726,14 @@ def DoSGRecon(select, mcmc, map, dbwrite=False, read=False, query=True, dbdir='/
             nosim = None
             des = None
 
-    truth, matched, nosim, des = SGClassify(truth, matched, nosim, des)
+   
+    if MPI.COMM_WORLD.Get_rank()==0:
+        #cut = (np.abs(matched['mag_auto_%s'%(band)] - matched['mag_%s'%(band)]) > 2)
+        if mcmc['bcut'] is not None:
+            cut = (matched['mag_auto_%s'%(band)] - matched['mag_%s'%(band)] < -mcmc['bcut'])
+            matched = matched[-cut]
+
+    truth, matched, nosim, des = SGClassify(truth, matched, nosim, des, band)
     truth, matched, nosim, des = RemoveNotUsed(truth, matched, nosim, des, mcmc, band)
 
     if MPI.COMM_WORLD.Get_rank()==0:
@@ -800,104 +830,31 @@ def DoStarGalaxy(select, mcmc, map):
             SGRecon2Map(names[-1], map['version'], magmin=map['summin'], magmax=map['summax'], nside=map['nside'], nest=map['nest'])
 
 
-
+def ResultsPDF(config):
+    sg = config[1]['sg']
+    dir = config[1]['hpjdir']
+    version = config[2]['version']
+    table = config[0]['table']
+    if table.find('sva1v5')!=-1:
+        ppg = 1.0e3
+    else:
+        ppg = 1.0e5
+    plotter = SGMapPlot.HPJPlotter(dir, version=version, pixpergal=ppg, sg=sg)
+    out = os.path.join(dir, 'maps.pdf')
+    SGMapPlot.MapsFromReconImages(plotter, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file=out, sg=sg)
 
 
 if __name__=='__main__': 
-    
-    version = 'sva1v2'
-    size = 0.5
-    band = sys.argv[1]
-    sg = True
+  
+    if MPI.COMM_WORLD.Get_rank()==0:
+        config = ConfigDict.BuildDict(band=sys.argv[1])
+    else:
+        config = None
+    config = mpifunctions.Broadcast(config)
 
-    if band =='i':
-        min = 17.5
-        max = 25.0
-        #max = 25.5
-        tbins = np.arange(min, max+size, size)
-
-        min = 17.5
-        #max = 27.5
-        #max = 28.5
-        max = 34.5
-        obins = np.arange(min, max+size, size)
-        obins = np.insert(obins, 0, -100)
-        obins = np.insert(obins, len(obins), 100)
-
-    elif band=='r':
-        min = 17.5
-        max = 26.2
-        tbins = np.arange(min, max+size, size)
-
-        min = 17.5
-        #max = 28.5
-        max = 34.5
-        obins = np.arange(min, max+size, size)
-        obins = np.insert(obins, 0, -100)
-        obins = np.insert(obins, len(obins), 100)
-
-    elif band=='z':
-        min = 17.5
-        #max = 25.45
-        max = 25.0
-        tbins = np.arange(min, max+size, size)
-
-        min = 17.5
-        max = 28.5
-        obins = np.arange(min, max+size, size)
-        obins = np.insert(obins, 0, -100)
-        obins = np.insert(obins, len(obins), 100)
-
-    
-    tc = ['objtype_%s'%(band), 'mag_%s'%(band)]
-    tb = [np.arange(0.5, 5, 2.0), tbins]
-    mc = ['modtype_%s'%(band), 'mag_auto_%s'%(band)]
-    mb = [np.arange(0.5, 7, 2.0), obins]
-    if not sg:
-        tc = tc[-1:]
-        tb = tb[-1:]
-        mc = mc[-1:]
-        mb = mb[-1:]
-
-
-    DBselect = {'table': version,
-                'des': 'sva1_coadd_objects',
-                'bands': [band],
-                'truth': ['balrog_index', 'mag', 'ra', 'dec', 'objtype'],
-                'sim': ['mag_auto', 'flux_auto', 'fluxerr_auto', 'flags', 'spread_model', 'spreaderr_model', 'class_star', 'mag_psf', 'alphawin_j2000', 'deltawin_j2000']
-               }
-
-    MCMCconfig = {'sg': sg,
-                  'truthcolumns': tc,
-                  'truthbins': tb,
-                  'measuredcolumns': mc,
-                  'measuredbins': mb,
-
-                  'threshold': 0,
-                  'PCAon': 'healpix',
-                  'Lcut': 0,
-                  'n_component': 10,
-                  'residual': False,
-
-                  'burnin': 3000,
-                  'steps': 1000,
-                  'nWalkers': 1000,
-
-                  'jackfield': 'jacknife',
-                  'jacknife': 1,
-                  'jackdes': True
-                 }
-
-    MapConfig = {'nside': 64,
-                 #'nside': None,
-                 'hpfield': 'hpIndex',
-
-                 'version': '%s-%s-mbins=%.1f-sg=%s-Lcut=%s' %(version,band,size,str(sg), MCMCconfig['Lcut']),
-                 'nest': False,
-                 'summin': 22.5,
-                 'summax': 24.5}
-
-    MCMCconfig['out'] = os.path.join(MapConfig['version'], 'SGPlots-%s'%(MapConfig['version']))
-
-    DoSGRecon(DBselect, MCMCconfig, MapConfig, query=False, dbwrite=False, read=True)
+    DoSGRecon(config[0], config[1], config[2], query=False, dbwrite=False, read=True)
     #DoSGRecon(DBselect, MCMCconfig, MapConfig, query=True, dbwrite=True, read=False)
+
+
+    if MPI.COMM_WORLD.Get_rank()==0:
+        ResultsPDF(config)
