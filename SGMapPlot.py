@@ -12,8 +12,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import LogNorm, Normalize
-#from matplotlib.backends.backend_agg import FigureCanvasAgg as Canvas
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg as Canvas
+from matplotlib.backends.backend_agg import FigureCanvasAgg as Canvas
+#from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg as Canvas
 
 import mpifunctions
 import DBfunctions
@@ -117,7 +117,7 @@ def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file='m
                 axarr[ys[j],xs[j]].lines.pop(0)
 
 
-    pp.savefig(fig)
+    #pp.savefig(fig)
     pp.close()
     plt.close(fig)
 

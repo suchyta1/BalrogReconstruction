@@ -232,7 +232,13 @@ class MCMCReconstruction(object):
         avg = np.average(subchain, axis=-1)
         std = np.std(subchain, axis=-1)
 
-        #ind = np.argmax(self.Sampler.lnprobability
+        
+        subprob = self.Sampler.lnprobability[:, chainstart:chainend]
+        ind = np.argmax(subprob)
+        mind = np.unravel_index(ind, subprob.shape)
+        avg = subchain[mind]
+        #ind = np.argmax(subprob, axis=0)
+
 
         '''
         cut = (self.Balrog.TruthHistogram1D == 0)

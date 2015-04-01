@@ -102,6 +102,10 @@ def StarGalaxyRecon(truth, matched, des, band, truthcolumns, truthbins, measured
     galaxy_balrog_truth_center, galaxy_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
     galaxy_recon_obs_center, galaxy_recon_obs = ReconObject.ReturnHistogram(kind='Measured', where=where)
     galaxy_recon_truth_center, galaxy_recon_truth, galaxy_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
+    BalrogObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'BT-G', 'color':'Blue'})
+    BalrogObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'BO-G', 'color':'Red'})
+    ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'DO-G', 'color':'Gray'})
+    ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'DR-G', 'color':'black', 'fmt':'.'})
 
     where = [1, None]
     star_balrog_obs_center, star_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
@@ -525,6 +529,12 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         LikePCA, MasterPCA = PCA.doLikelihoodPCAfit(pcaComp=evectors, master=master, Lcut=Lcut, eigenval=evalues, likelihood=like, n_component=n_component, residual=residual)
         BalrogObject.Likelihood = LikePCA
 
+    wmid = len(BalrogObject.TruthBins[-1])-1
+    wend = wmid * 2
+    mask = 5
+    BalrogObject.Likelihood[ :, (wmid-mask):wmid] = 0
+    BalrogObject.Likelihood[ :, (wend-mask):wend] = 0
+
     '''
     fig = plt.figure()
     ax = fig.add_subplot(1,1, 1)
@@ -566,8 +576,6 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
     plt.savefig(chainfile)
     plt.close(fig)
 
-    wmid = len(BalrogObject.TruthBins[-1])-1
-    wend = wmid * 2
 
     if sg:
         where = [0, None]
@@ -579,6 +587,16 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         galaxy_Nobs = BalrogObject.NObserved[0:wmid]
         galaxy_nobs = np.sum(BalrogObject.Likelihood[:, 0:wmid], axis=0)
 
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1, 1)
+        where = [0, None]
+        BalrogObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'BT-G', 'color':'Blue'})
+        BalrogObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'BO-G', 'color':'Red'})
+        ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'DO-G', 'color':'Gray'})
+        ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'DR-G', 'color':'black', 'fmt':'.'})
+        #ax.legend(loc='best', ncol=2)
+
+
         where = [1, None]
         star_balrog_truth_center, star_balrog_truth = BalrogObject.ReturnHistogram(kind='Truth', where=where)
         star_recon_truth_center, star_recon_truth, star_recon_trutherr = ReconObject.ReturnHistogram(kind='RECONSTRUCTED', where=where)
@@ -587,6 +605,17 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
         star_window = BalrogObject.Window[wmid:wend]
         star_Nobs = BalrogObject.NObserved[wmid:wend]
         star_nobs = np.sum(BalrogObject.Likelihood[:, wmid:wend], axis=0)
+
+        BalrogObject.PlotTruthHistogram1D(where=where, ax=ax, plotkwargs={'label':'BT-S', 'color':'Blue', 'ls':'dashed'})
+        BalrogObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'BO-S', 'color':'Red', 'ls':'dashed'})
+        ReconObject.PlotMeasuredHistogram1D(where=where, ax=ax, plotkwargs={'label':'DO-S', 'color':'Gray', 'ls':'dashed'})
+        ReconObject.PlotReconHistogram1D(where=where, ax=ax, plotkwargs={'label':'DR-S', 'color':'black', 'fmt':'*'})
+        centers, star, starerr = MCMC.ReturnHistogram(ReconObject, kind='RECONSTRUCTED', where=where)
+        #ax.legend(loc='best', ncol=2)
+        ax.set_yscale('log')
+        ax.set_ylim( [1, 1e6] )
+        plt.savefig(reconfile)
+        plt.close(fig)
 
         where = [2, None]
         neither_balrog_obs_center, neither_balrog_obs = BalrogObject.ReturnHistogram(kind='Measured', where=where)
@@ -688,6 +717,13 @@ def RemoveFields(arr, columns):
     arr = recfunctions.drop_fields(arr, remove, usemask=False)
     return arr
 
+def s2nCut(arr, s2n, band):
+    cut = (arr['fluxerr_auto_%s'%(band)] > 0)
+    arr = arr[cut] 
+    cut = ( arr['flux_auto_%s'%(band)]/arr['fluxerr_auto_%s'%(band)] > s2n)
+    arr = arr[cut]
+    return arr
+
 
 def DoSGRecon(select, mcmc, map, dbwrite=False, read=False, query=True, dbdir='/gpfs/mnt/gpfs01/astro/astronfs03/workarea/esuchyta/DBFits'):
     band = select['bands'][0]
@@ -732,6 +768,10 @@ def DoSGRecon(select, mcmc, map, dbwrite=False, read=False, query=True, dbdir='/
         if mcmc['bcut'] is not None:
             cut = (matched['mag_auto_%s'%(band)] - matched['mag_%s'%(band)] < -mcmc['bcut'])
             matched = matched[-cut]
+
+        if mcmc['s2n'] is not None:
+            matched = s2nCut(matched, mcmc['s2n'], band)
+            des = s2nCut(des, mcmc['s2n'], band)
 
     truth, matched, nosim, des = SGClassify(truth, matched, nosim, des, band)
     truth, matched, nosim, des = RemoveNotUsed(truth, matched, nosim, des, mcmc, band)
@@ -836,9 +876,9 @@ def ResultsPDF(config):
     version = config[2]['version']
     table = config[0]['table']
     if table.find('sva1v5')!=-1:
-        ppg = 1.0e3
+        ppg = 1.0e3 / 5.0
     else:
-        ppg = 1.0e5
+        ppg = 1.0e3
     plotter = SGMapPlot.HPJPlotter(dir, version=version, pixpergal=ppg, sg=sg)
     out = os.path.join(dir, 'maps.pdf')
     SGMapPlot.MapsFromReconImages(plotter, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file=out, sg=sg)

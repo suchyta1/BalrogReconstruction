@@ -8,23 +8,20 @@ def BuildDict(band='i', savedir=None):
     if savedir is None:
         savedir = os.path.join(os.environ['GLOBALDIR'], 'saved-runs')
 
-    version = 'sva1v2'
+    version = 'sva1v5'
     size = 0.5
     sg = True
 
     if band =='i':
         min = 17.5
-        max = 25.0
+        #max = 25.0
+        max = 27.0
         tbins = np.arange(min, max+size, size)
 
         min = 17.5
-        max = 27.0
-        '''
-        max = 27.5
-        max = 28.5
-        max = 34.5
+        #max = 27.0
         max = 29.0
-        '''
+
         obins = np.arange(min, max+size, size)
         #obins = np.insert(obins, 0, -100)
         #obins = np.insert(obins, len(obins), 100)
@@ -86,7 +83,9 @@ def BuildDict(band='i', savedir=None):
 
                   'threshold': 0,
                   'Lcut': 0,
-                  'bcut': None
+
+                  'bcut': None,
+                  's2n': 5,
 
                   'PCAon': 'healpix',
                   'residual': False,
