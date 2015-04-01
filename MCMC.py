@@ -222,6 +222,7 @@ class MCMCReconstruction(object):
     def GetReconstruction(self, chainstart=0, chainend=None):
         if chainend==None:
             chainend = self.Sampler.chain.shape[1]
+        sc = self.Sampler.chain[:, chainstart:chainend, :]
         subchain = self.Sampler.chain[:, chainstart:chainend, :]
         subchain = np.transpose(subchain, (2,0,1))
         subchain = np.reshape(subchain, (subchain.shape[0], subchain.shape[1]*subchain.shape[2]))
@@ -229,15 +230,23 @@ class MCMCReconstruction(object):
         if self.samplelog:
             subchain = np.power(10.0, subchain)
 
+        '''
         avg = np.average(subchain, axis=-1)
         std = np.std(subchain, axis=-1)
-
+        '''
         
+        '''
         subprob = self.Sampler.lnprobability[:, chainstart:chainend]
         ind = np.argmax(subprob)
         mind = np.unravel_index(ind, subprob.shape)
-        avg = subchain[mind]
-        #ind = np.argmax(subprob, axis=0)
+        avg = sc[mind]
+        '''
+        
+        subprob = self.Sampler.lnprobability[:, chainstart:chainend]
+        ind = np.argmax(subprob, axis=1)
+        maxs = sc[ np.arange(sc.shape[0]), ind, :]
+        avg = np.average(maxs, axis=0)
+        std = np.std(maxs, axis=0)
 
 
         '''
