@@ -531,9 +531,11 @@ def SGR2(truth, matched, des, band, truthcolumns, truthbins, measuredcolumns, me
 
     wmid = len(BalrogObject.TruthBins[-1])-1
     wend = wmid * 2
+    '''
     mask = 5
     BalrogObject.Likelihood[ :, (wmid-mask):wmid] = 0
     BalrogObject.Likelihood[ :, (wend-mask):wend] = 0
+    '''
 
     '''
     fig = plt.figure()
@@ -725,7 +727,7 @@ def s2nCut(arr, s2n, band):
     return arr
 
 
-def DoSGRecon(select, mcmc, map, dbwrite=False, read=False, query=True, dbdir='/gpfs/mnt/gpfs01/astro/astronfs03/workarea/esuchyta/DBFits'):
+def DoSGRecon(select, mcmc, map, dbwrite=False, read=False, query=True, dbdir=os.path.join(os.environ['GLOBALDIR'],'DBFits')):
     band = select['bands'][0]
     bversion = select['table']
     dir = os.path.join(dbdir, bversion)
@@ -887,14 +889,14 @@ def ResultsPDF(config):
 if __name__=='__main__': 
   
     if MPI.COMM_WORLD.Get_rank()==0:
+        print 'ok?'
         config = ConfigDict.BuildDict(band=sys.argv[1])
     else:
         config = None
     config = mpifunctions.Broadcast(config)
-
+   
     DoSGRecon(config[0], config[1], config[2], query=False, dbwrite=False, read=True)
-    #DoSGRecon(DBselect, MCMCconfig, MapConfig, query=True, dbwrite=True, read=False)
-
+    #DoSGRecon(config[0], config[1], config[2], query=True, dbwrite=True, read=False)
 
     if MPI.COMM_WORLD.Get_rank()==0:
         ResultsPDF(config)

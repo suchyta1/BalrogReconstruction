@@ -100,20 +100,49 @@ def LikelihoodArcsinh(like, fig, ax, plotscale=1.0e-3, nticks=3, extent=None, st
     for i in range(len(alabels)):
         #tlabels.append('%.2e'%(alabels[i]))
         tlabels.append('%.3f'%(alabels[i]))
+    
+
+    ''' 
+    aimage = np.copy(like)
+    c = (like > 0)
+    aimage[c] = np.log10(like[c])
+    #amin = np.amin(aimage)
+    amin = -4
+    amax = np.amax(aimage)
+    aimage[-c] = amin
+    cc = (aimage <= amin)
+    aimage[cc] = amin
+    alabels =  np.logspace(amin, amax, num=nticks) 
+    aticks = np.log10(alabels)
+    tlabels = []
+    for i in range(len(alabels)):
+        tlabels.append('%.1e'%(alabels[i]))
+    '''
+   
 
     im = ax.imshow(aimage, origin='lower', cmap=plt.cm.Greys, extent=extent, interpolation='nearest')
     if cax is None:
         cbar = fig.colorbar(im, ticks=aticks)
     else:
         cbar = plt.colorbar(im, cax=cax, ticks=aticks)
-
     cbar.ax.set_yticklabels(tlabels)
 
-    
-    #im = ax.imshow( -likelihood_pcomp[:,:,i],origin='lower',cmap=plt.cm.Greys, extent = extent,vmin=-1,vmax=1)
-    #ax.set_xlabel(band+' mag (true)')
-    #ax.set_ylabel(band+' mag (meas)')
-    #fig.colorbar(im,ax=ax)
+    '''
+    ff, aa = plt.subplots(nrows=1, ncols=1)
+    im = aa.imshow(aimage, origin='lower', cmap=plt.cm.Greys, extent=extent, interpolation='nearest')
+    if cax is None:
+        cbar = ff.colorbar(im, ticks=aticks)
+    else:
+        cbar = plt.colorbar(im, cax=cax, ticks=aticks)
+    cbar.ax.set_yticklabels(tlabels)
+    #aa.axhline(y=22.5, color='red')
+    aa.set_xlabel('Truth Magnitude', fontsize=20)
+    aa.set_ylabel('Measured Magnitude', fontsize=20)
+    aa.set_xticks(np.arange(18, 25, 2))
+    plt.setp(plt.gca().get_xticklabels(), fontsize=14)
+    plt.setp(plt.gca().get_yticklabels(), fontsize=14)
+    plt.savefig('like.png')
+    '''
     
     plt.tight_layout()
     return ax

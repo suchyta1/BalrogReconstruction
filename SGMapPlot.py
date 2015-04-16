@@ -30,7 +30,7 @@ def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file='m
     coords = ReconHDUs[-2].data
     cut = np.where( (coords > magmin) & (coords < magmax) )
     start = np.amin(cut)
-    end = np.amax(cut)
+    end = np.amax(cut) + 1
     
     ReconCat = ReconHDUs[-1].data
     cut = (ReconCat[pobj.hpfield] >= -1) & (ReconCat[pobj.jfield] == -1)
@@ -39,13 +39,13 @@ def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file='m
     area = ReconCat['numTruth'][cut] * pobj.pixpergal * np.power(pobj.pscale/60.0, 2)
     norm = 1.0 / area
 
+
     ReconGalSample = np.sum(ReconHDUs[1].data[cut][:, start:end], axis=1) * norm
     RawGalSample = np.sum(RawHDUs[1].data[cut][:, start:end], axis=1) * norm
     if sg:
         ReconStarSample = np.sum(ReconHDUs[2].data[cut][:, start:end], axis=1) * norm
         RawStarSample = np.sum(RawHDUs[2].data[cut][:, start:end], axis=1) * norm
 
-  
     ys = [0,0, 1,1]
     xs = [0,1, 0,1]
     pp = PdfPages(file)
@@ -53,6 +53,7 @@ def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file='m
 
     likes = pyfits.open(pobj.reconfile)[-3].data[cut]
     center = pyfits.open(pobj.truthfile)[-2].data
+    mcenter = RawHDUs[-2].data
     if not sg:
         GalWindow = pyfits.open(pobj.truthfile)[-3].data[cut]
         r = len(ys)-2
@@ -65,13 +66,34 @@ def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file='m
     #axarr[1,2].axis('off')
 
     c = (hps > -1)
-    ReconGalMap = MakeMap(ReconGalSample, hps[c], pobj.nside, axarr[0,0], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Reconstructed Galaxy Map')
-    RawGalMap = MakeMap(RawGalSample, hps[c], pobj.nside, axarr[0,1], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Raw Galaxy Map')
+    ReconGalMap, ReconGalHist = MakeMap(ReconGalSample[c], hps[c], pobj.nside, axarr[0,0], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Reconstructed Galaxy Map', ax2=axarr[2,0], plotkwargs={'color':'red', 'label':'Reconstruction'}, bins=np.arange(0,30,0.75))
+    RawGalMap, RawGalHist = MakeMap(RawGalSample[c], hps[c], pobj.nside, axarr[0,1], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Raw Galaxy Map', ax2=axarr[2,0], plotkwargs={'color':'blue', 'alpha':0.5, 'label':'Raw'}, bins=np.arange(0,30,0.75))
+    axarr[2,0].set_title('Galaxies')
+    axarr[2,0].legend(loc='best')
     if sg:
-        ReconStarMap = MakeMap(ReconStarSample, hps[c], pobj.nside, axarr[1,0], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Reconstructed Star Map')
-        RawStarMap = MakeMap(RawStarSample, hps[c], pobj.nside, axarr[1,1], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Raw Star Map')
+        ReconStarMap, ReconStarHist = MakeMap(ReconStarSample[c], hps[c], pobj.nside, axarr[1,0], nest=pobj.nest, cmin=cmin, cmax=cmax, title='Reconstructed Star Map', ax2=axarr[2,1], plotkwargs={'color':'red', 'label':'Reconstruction'}, bins=np.arange(0,30,0.75))
+        RawStarMap, RawStarHist = MakeMap(RawStarSample[c], hps[c], pobj.nside, axarr[1,1], ax2=axarr[2,1], plotkwargs={'color':'blue', 'alpha':0.5, 'label':'Raw'}, nest=pobj.nest, cmin=cmin, cmax=cmax, title='Raw Star Map')
+        axarr[2,1].set_title('Stars')
+        axarr[2,1].legend(loc='best')
 
-    for i in range(len(hps)):
+    '''
+    hps = hps[-1:]
+    GalWindow = GalWindow[-1:]
+    StarWindow = StarWindow[-1:]
+    ra = ra[-1:]
+    dec = dec[-1:]
+    likes = likes[-1:]
+    print hps
+    '''
+
+    iter = [0, -1]
+    #for i in range(len(hps)):
+    for i in iter:
+        '''
+        if hps[i] != -1:
+            continue
+        '''
+
         canvas = Canvas(fig)
         #canvas = FigureCanvas(fig)
 
@@ -81,21 +103,39 @@ def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file='m
         ax.plot(center, GalWindow[i], color='red', linestyle='-', marker='o')
         if sg:
             ax.plot(center, StarWindow[i], color='blue', linestyle='-', marker='o')
-        ax.set_yscale('log')
-        ax.set_ylim( [1e-5, 1] )
+        #ax.set_yscale('log')
+        #ax.set_ylim( [1e-5, 1] )
+        ax.set_ylim( [0, 1] )
+        ax.set_xlabel('Magnitude')
 
         if hps[i]!=-1:
             for j in range(r):
                 axarr[ys[j], xs[j]].plot( [ra[i]], [dec[i]], color='black', marker='x', markersize=10, linestyle='None' )
+
+        #ff, aa = plt.subplots(nrows=1, ncols=1)
+        #ax = aa
 
         ax = axarr[0,2]
         ax.clear()
         #ax = pobj.SimplePlot(hp=hps[i], ax=ax, log=True)
         ax = pobj.SimplePlot(hp=hps[i], ax=ax, log=False)
         ax.set_yscale('log')
-        ax.set_xlim( [17.5, 27.5] )
+        #ax.set_xlim( [17.5, 27.5] )
+        ax.set_xlim( [17.5, 25.0] )
         ax.set_ylim( [1e-3, 1e3] )
+        ax.set_xlabel('Magnitude')
+        ax.set_ylabel(r'Number Density (arcmin$^{-2}$)')
+
+        '''
+        ax.set_xlabel('Magnitude', fontsize=20)
+        ax.set_ylabel(r'Number Density (arcmin$^{-2}$)', fontsize=20)
+        plt.setp(plt.gca().get_xticklabels(), fontsize=14)
+        plt.setp(plt.gca().get_yticklabels(), fontsize=14)
+        plt.savefig('recon.png')
+        '''
+        
         axarr[0,2] = ax
+
        
 
         ax = axarr[2,2]
@@ -105,8 +145,30 @@ def MapsFromReconImages(pobj, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file='m
         else:
             cax = fig.axes[-1]
             cax.clear()
+
+        ''' 
+        ll = likes[i]
+        csize = ll.shape[1]/2
+        rsize = ll.shape[0]/3
+        ll = ll[0:rsize, 0:csize] + ll[rsize:(2*rsize), 0:csize] + ll[(2*rsize):(3*rsize), 0:csize]
+        #extent = [center[0]-0.25, center[-1]-0.25, mcenter[0]-0.25, mcenter[-1]-0.25]
+        extent = [center[0], center[-1], mcenter[0], mcenter[-1]]
+        '''
+
         ax = PCA.LikelihoodArcsinh(likes[i], fig, ax, plotscale=1.0e-3, nticks=5, cax=cax)
+        #ax = PCA.LikelihoodArcsinh(ll, fig, ax, plotscale=1.0e-3, nticks=5, cax=cax, extent=extent)
         axarr[2,2] = ax
+
+        #ax.set_xlabel('Truth Magnitude')
+        #ax.set_ylabel('Measured Magnitude')
+
+        #ax.axvline(x=(len(center)-5), ymin=0, ymax=len(mcenter), color='red')
+        #ax.axvline(x=22.5, ymin=0, ymax=len(mcenter), color='red')
+        #ax.axhline(y=22.5, xmin=0, xmax=len(center), color='red')
+        #xticks = np.arange(18, 25, 2)
+        #yticks = np.arange(18, 27, 2)
+        #ax.set_xticks(xticks)
+        #ax.set_yticks(yticks)
 
         
         plt.tight_layout()
@@ -162,11 +224,26 @@ def ChooseColorScale(choice, default):
         return default
 
 
-def MakeMap(sample, hpIndex, nside, ax, nest=False, cmin=None, cmax=None, title=None):
+def MakeMap(sample, hpIndex, nside, ax, ax2=None, plotkwargs={}, nest=False, cmin=None, cmax=None, title=None, bins=None):
     Map, mmin, mmax = FractionalOffsetMap(sample, hpIndex, nside)
     cmin = ChooseColorScale(cmin, mmin)
     cmax = ChooseColorScale(cmax, mmax)
-    return MakeHealPixMap(Map, ax, nest=nest, vmin=cmin, vmax=cmax, background='gray', title=title)
+    if ax2 is None:
+        return MakeHealPixMap(Map, ax, nest=nest, vmin=cmin, vmax=cmax, background='gray', title=title), None
+    else:
+        return MakeHealPixMap(Map, ax, nest=nest, vmin=cmin, vmax=cmax, background='gray', title=title), MakeHealPixHist(sample, ax2, plotkwargs=plotkwargs, nbins=30, bins=bins)
+
+def MakeHealPixHist(Map, ax, nbins=None, plotkwargs={}, bins=None):
+    cut = (Map > hp.UNSEEN)
+    vals = Map[cut]
+    min = np.amin(vals)
+    max = np.amax(vals)
+    if nbins is not None:
+        hbins = np.linspace(min, max, nbins)
+    if bins is not None:
+        hbins = bins
+    hist, bins, _ = ax.hist(vals, bins=hbins, **plotkwargs)
+    return ax
 
 
 def MakeHealPixMap(theMap, ax, nest=False, cmap=plt.cm.bwr, vmin=None, vmax=None, background=None, title=None):
@@ -194,8 +271,11 @@ def MakeHealPixMap(theMap, ax, nest=False, cmap=plt.cm.bwr, vmin=None, vmax=None
     ax.autoscale_view()
     if background is not None:
         ax.set_axis_bgcolor(background)
-    plt.colorbar(coll,ax=ax)
+    cbar = plt.colorbar(coll,ax=ax)
+    cbar.set_label('Fractional Deviation')
     ax.set_title(title)
+    ax.set_xlabel('RA (degrees)')
+    ax.set_ylabel('DEC (degrees)')
     return ax
 
 
@@ -400,6 +480,7 @@ class HPJPlotter(object):
         area = nt * self.pixpergal * np.power(self.pscale/60.0, 2)
         norm = 1.0 / area
         norm = np.array([norm]*len(hpcut))
+        #print area
 
         #print hdus[hpext].data['numTruth']
 
@@ -451,7 +532,7 @@ class HPJPlotter(object):
         ax = self.Plot(ax, log=log, curve='truth', obj='galaxy', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'red', 'ls':'dashed'})
         ax = self.Plot(ax, log=log, curve='des', obj='galaxy', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'red'})
         ax = self.Plot(ax, log=log, curve='obs', obj='galaxy', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'red', 'ls':'-.'})
-        
+
         if self.sg:
             ax = self.Plot(ax, log=log, curve='recon', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'fmt':'o', 'color':'blue', 'markersize':3})
             ax = self.Plot(ax, log=log, curve='truth', obj='star', hp=hp, jack=-1, ncut=ncut, plotkwargs={'color':'blue', 'ls':'dashed'})
@@ -484,6 +565,34 @@ def SimplerPlot(version, log=False, jd=10, hp=-1):
     return ax
 
 
+def AverageThing(pobj):
+    ReconHDUs = pyfits.open(pobj.reconfile)
+    ReconCat = ReconHDUs[-1].data
+    cut = (ReconCat[pobj.hpfield] == -1) & (ReconCat[pobj.jfield] == -1)
+
+    likes = ReconHDUs[-3].data
+    like = likes[cut][0]
+    lo = like.shape[0]
+    lt = like.shape[1]
+    like = like[0:(lo/3), 0:(lt/2)]
+    print like.shape
+
+    ocoords = pyfits.open(pobj.obsfile)[-2].data
+    tcoords = ReconHDUs[-2].data
+    relative = np.reshape(ocoords, (1,ocoords.shape[0])) - np.reshape(tcoords, (tcoords.shape[0],1)) 
+    dists = np.transpose(like, (1,0))
+    norm = np.sum(dists, axis=1)
+    dists = dists / np.reshape(norm, (norm.shape[0],1))
+    print relative.shape, dists.shape
+
+    fig, ax = plt.subplots(1,1)
+    for i in range(like.shape[1]):
+        ax.plot(relative[i], dists[i], label='%.1f'%(tcoords[i]))
+    ax.set_xlim([-10,10])
+    ax.set_yscale('log')
+    ax.legend(loc='lower left', ncol=2, bbox_to_anchor=(1.05, 0.1))
+    plt.savefig('offset.png', bbox_inches='tight')
+        
 
 '''
 #recon_truth = [galaxy_recon_truth, star_recon_truth, galaxy_recon_trutherr, star_recon_trutherr, galaxy_recon_truth_center]
@@ -548,12 +657,13 @@ if __name__=='__main__':
     version = config[2]['version']
     table = config[0]['table']
     if table.find('sva1v5')!=-1:
-        ppg = 1.0e3
+        ppg = 5.0e2
     else:
-        ppg = 1.0e5
+        ppg = 1.0e3
     plotter = HPJPlotter(dir, version=version, pixpergal=ppg, sg=sg)
     out = os.path.join(dir, 'maps.pdf')
-    MapsFromReconImages(plotter, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file=out, sg=sg)
+    #MapsFromReconImages(plotter, magmin=22.5, magmax=24.5, cmin=-1, cmax=1, file=out, sg=sg)
+    MapsFromReconImages(plotter, magmin=22.5, magmax=24.0, cmin=-1, cmax=1, file=out, sg=sg)
 
     '''
     plotter = HPJPlotter('sva1v5-i-mbins=0.5-sg=False-Lcut=0-ocut', pixpergal=1.0e3)
